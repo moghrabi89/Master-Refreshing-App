@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.9+-brightgreen.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
@@ -226,8 +226,8 @@ Settings are automatically saved in `config.json`:
 
 ### حالة المشروع | Project Status
 - ✅ **v0.1.0**: البنية الأساسية والوحدات الرئيسية | Core structure and main modules
-- 🔄 **قيد التطوير | In Progress**: تكامل كامل للواجهة | Full UI integration
-- 📋 **المخطط | Planned**: System Tray، التوثيق | System Tray, Documentation
+- ✅ **v0.2.0**: تكامل كامل للواجهة والنظام | Full UI and system integration
+- 📋 **المخطط | Planned**: ميزات إضافية وتحسينات | Additional features and improvements
 
 ### المساهمة | Contributing
 نرحب بالمساهمات! الرجاء:
