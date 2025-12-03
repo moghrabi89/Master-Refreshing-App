@@ -2,12 +2,12 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.9+-brightgreen.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-**أداة احترافية لتحديث ملفات Excel تلقائياً بشكل يومي**
+**أداة احترافية لتحديث ملفات Excel تلقائياً بشكل يومي***
 
 **Professional Desktop Application for Automated Daily Excel File Refresh**
 
@@ -227,6 +227,7 @@ Settings are automatically saved in `config.json`:
 ### حالة المشروع | Project Status
 - ✅ **v0.1.0**: البنية الأساسية والوحدات الرئيسية | Core structure and main modules
 - ✅ **v0.2.0**: تكامل كامل للواجهة والنظام | Full UI and system integration
+- ✅ **v1.0.0**: إصدار الإنتاج - نظام حماية السلامة والتوليد التلقائي للبيان | Production Release - Integrity protection system with auto-manifest generation
 - 📋 **المخطط | Planned**: ميزات إضافية وتحسينات | Additional features and improvements
 
 ### المساهمة | Contributing

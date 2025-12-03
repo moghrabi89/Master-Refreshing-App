@@ -47,8 +47,9 @@ class ExcelRefresher:
     xlPending = 2
     
     def __init__(self, 
-                 file_paths: List[str] = None,
+                 file_paths: Optional[List[str]] = None,
                  log_callback: Optional[Callable[[str, str], None]] = None,
+                 progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
                  timeout: int = DEFAULT_TIMEOUT):
         """
         Initialize the Excel refresh engine.
@@ -56,10 +57,12 @@ class ExcelRefresher:
         Args:
             file_paths: List of Excel file paths to refresh (optional)
             log_callback: Callback function(message, level) for logging
+            progress_callback: Callback function(current, total, file_path, status) for progress
             timeout: Maximum time in seconds to wait for refresh (default: 600)
         """
         self.file_paths = file_paths or []
         self.log_callback = log_callback
+        self.progress_callback = progress_callback
         self.timeout = timeout
         self.results: List[Dict[str, Any]] = []
         
@@ -88,23 +91,36 @@ class ExcelRefresher:
                 - total: Total number of files
                 - succeeded: Number of successful refreshes
                 - failed: Number of failed refreshes
+                - skipped: Number of skipped files (read-only)
                 - results: List of individual file results
         """
         self.results = []
         succeeded = 0
         failed = 0
+        skipped = 0
         
         self._log(f"Starting refresh of {len(self.file_paths)} file(s)", "INFO")
         start_time = time.time()
+        total_files = len(self.file_paths)
         
-        for file_path in self.file_paths:
+        for index, file_path in enumerate(self.file_paths, start=1):
             try:
+                # Emit progress: file started
+                if self.progress_callback:
+                    self.progress_callback(index, total_files, file_path, 'started')
+                
                 # Refresh single file
                 result = self.refresh_single_file(file_path)
                 self.results.append(result)
                 
+                # Emit progress: file completed
+                if self.progress_callback:
+                    self.progress_callback(index, total_files, file_path, result["status"])
+                
                 if result["status"] == "success":
                     succeeded += 1
+                elif result["status"] == "skipped":
+                    skipped += 1
                 else:
                     failed += 1
                     
@@ -124,12 +140,17 @@ class ExcelRefresher:
         # Calculate total time
         elapsed_time = time.time() - start_time
         
-        self._log(f"Refresh completed: {succeeded} succeeded, {failed} failed ({elapsed_time:.1f}s)", "INFO")
+        # Log completion with all categories
+        if skipped > 0:
+            self._log(f"Refresh completed: {succeeded} succeeded, {failed} failed, {skipped} skipped ({elapsed_time:.1f}s)", "INFO")
+        else:
+            self._log(f"Refresh completed: {succeeded} succeeded, {failed} failed ({elapsed_time:.1f}s)", "INFO")
         
         return {
             "total": len(self.file_paths),
             "succeeded": succeeded,
             "failed": failed,
+            "skipped": skipped,
             "elapsed_time": elapsed_time,
             "results": self.results
         }
@@ -140,13 +161,14 @@ class ExcelRefresher:
         
         Complete workflow:
         1. Validate file existence
-        2. Initialize Excel COM instance
-        3. Open workbook
-        4. Execute RefreshAll()
-        5. Wait for completion
-        6. Save workbook
-        7. Close workbook
-        8. Release COM objects
+        2. Check if file is read-only
+        3. Initialize Excel COM instance
+        4. Open workbook
+        5. Execute RefreshAll()
+        6. Wait for completion
+        7. Save workbook
+        8. Close workbook
+        9. Release COM objects
         
         Args:
             file_path: Absolute path to Excel file
@@ -154,7 +176,7 @@ class ExcelRefresher:
         Returns:
             Dictionary containing:
                 - file: File path
-                - status: "success" or "error"
+                - status: "success", "skipped", or "error"
                 - message: Descriptive message
                 - duration: Time taken in seconds
                 - error: Error details (if failed)
@@ -172,6 +194,17 @@ class ExcelRefresher:
                     "status": "error",
                     "message": error_msg,
                     "duration": 0
+                }
+            
+            # Step 2: Check if file is read-only
+            if self._is_file_readonly(file_path):
+                skip_msg = f"Skipped: File is read-only and cannot be refreshed — {file_path}"
+                self._log(skip_msg, "WARNING")
+                return {
+                    "file": file_path,
+                    "status": "skipped",
+                    "message": f"Skipped: {file_name} (read-only)",
+                    "duration": time.time() - start_time
                 }
             
             self._log(f"Refreshing: {file_name}", "INFO")
@@ -290,6 +323,8 @@ class ExcelRefresher:
             FileLockedError: If file is locked or open elsewhere
             Exception: For other errors
         """
+        if self.excel_app is None:
+            raise Exception("Excel application is not initialized; call _initialize_excel() first.")
         try:
             # Attempt to open workbook
             self.workbook = self.excel_app.Workbooks.Open(
@@ -349,14 +384,14 @@ class ExcelRefresher:
                 # Check if Excel is ready
                 try:
                     # Wait for calculation to complete
-                    if hasattr(self.excel_app, 'CalculationState'):
+                    if self.excel_app is not None and hasattr(self.excel_app, 'CalculationState'):
                         calc_state = self.excel_app.CalculationState
                         if calc_state == self.xlCalculating:
                             time.sleep(self.POLL_INTERVAL)
                             continue
                     
                     # Check if application is ready
-                    if hasattr(self.excel_app, 'Ready'):
+                    if self.excel_app is not None and hasattr(self.excel_app, 'Ready'):
                         if not self.excel_app.Ready:
                             time.sleep(self.POLL_INTERVAL)
                             continue
@@ -443,6 +478,33 @@ class ExcelRefresher:
             
         except Exception as e:
             self._log(f"Warning during Excel cleanup: {str(e)}", "WARNING")
+    
+    def _is_file_readonly(self, file_path: str) -> bool:
+        """
+        Check if a file is marked as read-only at filesystem level.
+        
+        Args:
+            file_path: Path to the file to check
+        
+        Returns:
+            bool: True if file is read-only, False otherwise
+        """
+        try:
+            # Check if file has read-only attribute set
+            import stat
+            file_stats = os.stat(file_path)
+            
+            # Check if file is read-only (no write permission)
+            # On Windows: Check if read-only attribute is set
+            if os.name == 'nt':  # Windows
+                return not (file_stats.st_mode & stat.S_IWRITE)
+            else:  # Unix-like
+                return not os.access(file_path, os.W_OK)
+        
+        except Exception as e:
+            # If we can't determine, log and assume writable
+            self._log(f"Warning: Could not check read-only status for {file_path}: {e}", "WARNING")
+            return False
     
     def _log(self, message: str, level: str = "INFO") -> None:
         """

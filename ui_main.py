@@ -19,7 +19,8 @@ Author: ENG. Saeed Al-moghrabi
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QPushButton, QLabel, QTableWidget, QTableWidgetItem, QTextEdit,
-    QTimeEdit, QFrame, QStatusBar, QHeaderView, QFileDialog
+    QTimeEdit, QFrame, QStatusBar, QHeaderView, QFileDialog, QCheckBox,
+    QProgressBar, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QTime
 from PyQt6.QtGui import QFont, QColor
@@ -146,10 +147,12 @@ class MainWindow(QMainWindow):
         self.file_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.file_table.setSelectionMode(QTableWidget.SelectionMode.MultiSelection)
         self.file_table.setAlternatingRowColors(True)
-        self.file_table.horizontalHeader().setStretchLastSection(False)
-        self.file_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        self.file_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.file_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header = self.file_table.horizontalHeader()
+        if header is not None:
+            header.setStretchLastSection(False)
+            header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+            header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.file_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         
         layout.addWidget(self.file_table)
@@ -263,6 +266,16 @@ class MainWindow(QMainWindow):
         self.stop_scheduler_btn.setEnabled(False)  # Initially disabled
         layout.addWidget(self.stop_scheduler_btn)
         
+        # Spacer
+        layout.addSpacing(10)
+        
+        # Windows Startup Checkbox
+        self.startup_checkbox = QCheckBox("🚀 Run on Windows Startup")
+        self.startup_checkbox.setObjectName("startupCheckbox")
+        self.startup_checkbox.setFont(QFont("Segoe UI", 10))
+        self.startup_checkbox.setCursor(Qt.CursorShape.PointingHandCursor)
+        layout.addWidget(self.startup_checkbox)
+        
         return frame
     
     def create_refresh_section(self):
@@ -331,6 +344,37 @@ class MainWindow(QMainWindow):
         
         layout.addWidget(self.logs_display)
         
+        # Add progress bar container
+        progress_container = QWidget()
+        progress_layout = QVBoxLayout(progress_container)
+        progress_layout.setContentsMargins(0, 10, 0, 0)
+        progress_layout.setSpacing(5)
+        
+        # Progress label
+        self.progress_label = QLabel("Initializing...")
+        self.progress_label.setObjectName("progressLabel")
+        self.progress_label.setFont(QFont("Segoe UI", 9))
+        self.progress_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        progress_layout.addWidget(self.progress_label)
+        
+        # Progress bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setObjectName("progressBar")
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setFormat("%p%")
+        self.progress_bar.setMinimumHeight(28)
+        self.progress_bar.setMaximumHeight(35)
+        progress_layout.addWidget(self.progress_bar)
+        
+        # Hide by default
+        progress_container.setVisible(False)
+        self.progress_container = progress_container
+        
+        layout.addWidget(progress_container)
+        
         return panel
     
     def create_status_bar(self):
@@ -343,6 +387,23 @@ class MainWindow(QMainWindow):
         self.status_message.setFont(QFont("Segoe UI", 9))
         status_bar.addWidget(self.status_message)
         
+        # Add spacer (pushes right-side indicators to the right)
+        spacer = QLabel()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        status_bar.addWidget(spacer)
+        
+        # Add integrity status indicator
+        self.integrity_label = QLabel("Integrity: Unknown")
+        self.integrity_label.setObjectName("integrityLabel")
+        self.integrity_label.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        self.integrity_label.setStyleSheet("color: #666666; padding: 0 10px;")
+        status_bar.addPermanentWidget(self.integrity_label)
+        
+        # Add separator
+        separator = QLabel("|")
+        separator.setStyleSheet("color: #3A3A3A; padding: 0 5px;")
+        status_bar.addPermanentWidget(separator)
+        
         # Add file count indicator
         self.file_count_label = QLabel("Files: 0")
         self.file_count_label.setFont(QFont("Segoe UI", 9))
@@ -352,253 +413,9 @@ class MainWindow(QMainWindow):
     
     def setup_styles(self):
         """Apply modern stylesheet to the entire application."""
-        stylesheet = """
-            /* ===== GENERAL ===== */
-            QMainWindow {
-                background-color: #1E1E1E;
-            }
-            
-            QWidget {
-                background-color: #1E1E1E;
-                color: #FFFFFF;
-            }
-            
-            /* ===== HEADER ===== */
-            QFrame#headerFrame {
-                background: qlineargradient(
-                    x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #4169E1,
-                    stop:0.5 #008080,
-                    stop:1 #50C878
-                );
-                border: none;
-                border-radius: 0px;
-            }
-            
-            QLabel#titleLabel {
-                color: #FFFFFF;
-                background: transparent;
-            }
-            
-            QLabel#subtitleLabel {
-                color: #E0E0E0;
-                background: transparent;
-            }
-            
-            /* ===== PANELS ===== */
-            QFrame#fileManagerPanel,
-            QFrame#controlsPanel,
-            QFrame#logsPanel {
-                background-color: #2D2D2D;
-                border-radius: 12px;
-                border: 1px solid #3A3A3A;
-            }
-            
-            QFrame#schedulerFrame,
-            QFrame#refreshFrame {
-                background-color: #252525;
-                border-radius: 10px;
-                border: 1px solid #3A3A3A;
-            }
-            
-            QLabel#panelTitle {
-                color: #FFFFFF;
-                background: transparent;
-            }
-            
-            /* ===== BUTTONS ===== */
-            QPushButton {
-                background: qlineargradient(
-                    x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #4169E1,
-                    stop:1 #008080
-                );
-                color: #FFFFFF;
-                border: none;
-                border-radius: 8px;
-                padding: 10px 20px;
-                font-size: 12px;
-                font-weight: bold;
-            }
-            
-            QPushButton:hover {
-                background: qlineargradient(
-                    x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #5179F1,
-                    stop:1 #009090
-                );
-            }
-            
-            QPushButton:pressed {
-                background: qlineargradient(
-                    x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #3159D1,
-                    stop:1 #007070
-                );
-            }
-            
-            QPushButton:disabled {
-                background: #3A3A3A;
-                color: #666666;
-            }
-            
-            QPushButton#refreshNowBtn {
-                background: qlineargradient(
-                    x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #50C878,
-                    stop:1 #00FFFF
-                );
-                font-size: 14px;
-            }
-            
-            QPushButton#refreshNowBtn:hover {
-                background: qlineargradient(
-                    x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #60D888,
-                    stop:1 #10FFFF
-                );
-            }
-            
-            QPushButton#removeFilesBtn {
-                background: qlineargradient(
-                    x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #DC3545,
-                    stop:1 #C82333
-                );
-            }
-            
-            QPushButton#removeFilesBtn:hover {
-                background: qlineargradient(
-                    x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #EC4555,
-                    stop:1 #D83343
-                );
-            }
-            
-            /* ===== TABLE ===== */
-            QTableWidget {
-                background-color: #252525;
-                alternate-background-color: #2A2A2A;
-                border: 1px solid #3A3A3A;
-                border-radius: 8px;
-                gridline-color: #3A3A3A;
-                color: #FFFFFF;
-            }
-            
-            QTableWidget::item {
-                padding: 8px;
-            }
-            
-            QTableWidget::item:selected {
-                background-color: #4169E1;
-                color: #FFFFFF;
-            }
-            
-            QHeaderView::section {
-                background-color: #1E1E1E;
-                color: #FFFFFF;
-                padding: 8px;
-                border: none;
-                border-bottom: 2px solid #4169E1;
-                font-weight: bold;
-            }
-            
-            /* ===== TIME EDIT ===== */
-            QTimeEdit {
-                background-color: #252525;
-                border: 2px solid #3A3A3A;
-                border-radius: 8px;
-                padding: 8px;
-                color: #FFFFFF;
-            }
-            
-            QTimeEdit:focus {
-                border: 2px solid #4169E1;
-            }
-            
-            QTimeEdit::up-button, QTimeEdit::down-button {
-                background-color: #3A3A3A;
-                border: none;
-                width: 20px;
-                border-radius: 4px;
-            }
-            
-            QTimeEdit::up-button:hover, QTimeEdit::down-button:hover {
-                background-color: #4A4A4A;
-            }
-            
-            /* ===== LOGS DISPLAY ===== */
-            QTextEdit#logsDisplay {
-                background-color: #1A1A1A;
-                border: 1px solid #3A3A3A;
-                border-radius: 8px;
-                padding: 10px;
-                color: #CCCCCC;
-            }
-            
-            /* ===== STATUS BAR ===== */
-            QStatusBar {
-                background-color: #1A1A1A;
-                color: #AAAAAA;
-                border-top: 1px solid #3A3A3A;
-            }
-            
-            QStatusBar QLabel {
-                background: transparent;
-                color: #AAAAAA;
-                padding: 4px 8px;
-            }
-            
-            /* ===== SCHEDULER STATUS ===== */
-            QLabel#schedulerStatus {
-                background: transparent;
-                color: #DC3545;
-                font-weight: bold;
-            }
-            
-            /* ===== SCROLLBARS ===== */
-            QScrollBar:vertical {
-                background-color: #252525;
-                width: 12px;
-                border-radius: 6px;
-            }
-            
-            QScrollBar::handle:vertical {
-                background-color: #4A4A4A;
-                border-radius: 6px;
-                min-height: 20px;
-            }
-            
-            QScrollBar::handle:vertical:hover {
-                background-color: #5A5A5A;
-            }
-            
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-            }
-            
-            QScrollBar:horizontal {
-                background-color: #252525;
-                height: 12px;
-                border-radius: 6px;
-            }
-            
-            QScrollBar::handle:horizontal {
-                background-color: #4A4A4A;
-                border-radius: 6px;
-                min-width: 20px;
-            }
-            
-            QScrollBar::handle:horizontal:hover {
-                background-color: #5A5A5A;
-            }
-            
-            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-                width: 0px;
-            }
-        """
-        
-        self.setStyleSheet(stylesheet)
+        # Stylesheet is now managed by theme.py
+        # Will be applied by main.py during initialization
+        pass
     
     def closeEvent(self, event):
         """

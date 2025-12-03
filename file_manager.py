@@ -320,11 +320,12 @@ class FileManager:
         Returns:
             Formatted string (e.g., "2.5 MB")
         """
+        size = float(size_bytes)
         for unit in ['B', 'KB', 'MB', 'GB']:
-            if size_bytes < 1024.0:
-                return f"{size_bytes:.1f} {unit}"
-            size_bytes /= 1024.0
-        return f"{size_bytes:.1f} TB"
+            if size < 1024.0:
+                return f"{size:.1f} {unit}"
+            size /= 1024.0
+        return f"{size:.1f} TB"
     
     def file_exists(self, file_path: str) -> bool:
         """

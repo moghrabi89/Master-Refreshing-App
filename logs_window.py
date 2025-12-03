@@ -1,231 +1,401 @@
 """
-logs_window.py - Logging System
+logs_window.py - Advanced Logging System
 
 Purpose:
-    Manages application logging with dual output: UI display panel and
-    external log file. Provides real-time log viewing, color-coded entries,
-    and persistent file logging with rotation.
+    Complete logging system with dual output: real-time UI display and
+    persistent file logging. Provides color-coded entries, automatic rotation,
+    and thread-safe operations for concurrent logging from multiple modules.
     
     Features:
-    - Real-time log display in UI panel
-    - Color-coded log levels (INFO, SUCCESS, ERROR)
-    - Auto-scroll to latest entry
-    - Timestamp formatting
-    - External file logging (logs/app.log)
-    - Rotating file handler (5MB max, 3 backups)
+    - Real-time log display in QTextEdit widget
+    - Color-coded log levels (INFO, SUCCESS, WARNING, ERROR, DEBUG)
+    - External file logging with rotation (5MB, 3 backups)
     - Thread-safe logging operations
-    - Clear UI logs functionality
+    - Auto-scroll to latest entry
+    - Clear logs functionality
+    - Timestamp formatting
+    - HTML-based formatting for rich text display
 
 Author: ENG. Saeed Al-moghrabi
+Version: 1.0.0
 """
+
+import os
+import logging
+from logging.handlers import RotatingFileHandler
+from datetime import datetime
+from typing import Optional
+from PyQt6.QtWidgets import QTextEdit
+from PyQt6.QtCore import QObject, pyqtSignal, Qt
+from PyQt6.QtGui import QTextCursor
+
+
+class LogSignals(QObject):
+    """
+    Qt signals for thread-safe logging to UI.
+    
+    Since logging can be called from background threads (scheduler, refresher),
+    we need signals to safely update the UI from the main thread.
+    """
+    log_message = pyqtSignal(str, str)  # (message, level)
 
 
 class Logger:
     """
-    Application logging manager.
+    Professional logging manager with dual output.
     
-    This class handles all logging operations including formatting,
-    color-coding, UI display, and file persistence. It provides a
-    centralized logging interface for all application modules.
+    This class provides a centralized logging interface that outputs to:
+    1. UI widget (QTextEdit) with color-coded formatting
+    2. External file (logs/app.log) with rotation
     
-    Expected Implementation:
-        - Use Python's logging module
-        - Configure dual handlers: UI + File
-        - Implement custom formatter with timestamps
-        - Use QTextEdit for UI display
-        - Configure RotatingFileHandler for file output
-        - Provide methods for different log levels
-        - Emit Qt signals for UI updates
+    Features:
+        - Thread-safe UI updates via Qt signals
+        - Color-coded log levels
+        - Automatic timestamp formatting
+        - Rotating file handler (prevents huge log files)
+        - Lazy UI widget attachment
+        - Python logging module integration
+    
+    Architecture:
+        - Wraps Python's logging module
+        - Emits Qt signals for UI updates
+        - Uses RotatingFileHandler for file output
+        - Maintains both UI and file handlers
     """
     
-    def __init__(self, ui_log_widget=None):
+    # Log level colors (HTML format for QTextEdit)
+    COLORS = {
+        'INFO': '#AAAAAA',      # Light gray
+        'SUCCESS': '#50C878',   # Emerald green
+        'WARNING': '#FFA500',   # Orange
+        'ERROR': '#DC3545',     # Red
+        'DEBUG': '#00FFFF'      # Cyan
+    }
+    
+    def __init__(self, ui_widget: Optional[QTextEdit] = None, log_file: str = "logs/app.log"):
         """
         Initialize the logging system.
         
         Args:
-            ui_log_widget: QTextEdit widget for log display (optional)
+            ui_widget: QTextEdit widget for log display (can be set later)
+            log_file: Path to log file (default: logs/app.log)
         """
-        pass
+        self.ui_widget = ui_widget
+        self.log_file = log_file
+        self.signals = LogSignals()
+        
+        # Setup Python logging
+        self._setup_file_logging()
+        
+        # Connect signal to UI update method
+        if self.ui_widget:
+            self.signals.log_message.connect(self._append_to_ui)
     
-    def setup_logging(self):
+    def _setup_file_logging(self) -> None:
         """
-        Configure the logging system.
+        Configure Python logging with rotating file handler.
         
-        Future Implementation:
-            - Create logs/ directory if not exists
-            - Configure Python logging module
-            - Add RotatingFileHandler (logs/app.log, 5MB, 3 backups)
-            - Add custom UI handler if widget provided
-            - Set log format: "[YYYY-MM-DD HH:MM:SS] [LEVEL] - Message"
-            - Set log level to INFO
+        Configuration:
+            - Log file: logs/app.log
+            - Max size: 5MB per file
+            - Backup count: 3 files
+            - Format: [YYYY-MM-DD HH:MM:SS] [LEVEL] - Message
+            - Encoding: UTF-8
         """
-        pass
+        # Create logs directory if it doesn't exist
+        log_dir = os.path.dirname(self.log_file)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        
+        # Get logger instance
+        self.logger = logging.getLogger('MasterRefreshingApp')
+        self.logger.setLevel(logging.DEBUG)
+        
+        # Remove existing handlers to avoid duplicates
+        self.logger.handlers.clear()
+        
+        # Create rotating file handler
+        file_handler = RotatingFileHandler(
+            self.log_file,
+            maxBytes=5 * 1024 * 1024,  # 5MB
+            backupCount=3,
+            encoding='utf-8'
+        )
+        file_handler.setLevel(logging.DEBUG)
+        
+        # Create formatter
+        formatter = logging.Formatter(
+            '[%(asctime)s] [%(levelname)s] - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        file_handler.setFormatter(formatter)
+        
+        # Add handler to logger
+        self.logger.addHandler(file_handler)
     
-    def info(self, message):
-        """
-        Log an informational message.
-        
-        Args:
-            message: Log message text
-        
-        Future Implementation:
-            - Log to file with INFO level
-            - Display in UI with white/gray color
-            - Add timestamp
-        """
-        pass
-    
-    def success(self, message):
-        """
-        Log a success message.
-        
-        Args:
-            message: Log message text
-        
-        Future Implementation:
-            - Log to file with INFO level
-            - Display in UI with green color
-            - Add timestamp
-        """
-        pass
-    
-    def error(self, message, exception=None):
-        """
-        Log an error message.
-        
-        Args:
-            message: Error message text
-            exception: Optional exception object for stack trace
-        
-        Future Implementation:
-            - Log to file with ERROR level
-            - Display in UI with red color
-            - Include exception details if provided
-            - Add timestamp
-        """
-        pass
-    
-    def warning(self, message):
-        """
-        Log a warning message.
-        
-        Args:
-            message: Warning message text
-        
-        Future Implementation:
-            - Log to file with WARNING level
-            - Display in UI with yellow/orange color
-            - Add timestamp
-        """
-        pass
-    
-    def log_refresh_start(self, file_path):
-        """
-        Log the start of a file refresh operation.
-        
-        Args:
-            file_path: Excel file being refreshed
-        
-        Future Implementation:
-            - Extract filename from path
-            - Log "Refreshing: {filename}..."
-            - Use INFO level
-        """
-        pass
-    
-    def log_refresh_success(self, file_path, duration):
-        """
-        Log successful file refresh.
-        
-        Args:
-            file_path: Excel file that was refreshed
-            duration: Time taken in seconds
-        
-        Future Implementation:
-            - Extract filename
-            - Log "✓ Successfully refreshed {filename} ({duration}s)"
-            - Use SUCCESS level (green)
-        """
-        pass
-    
-    def log_refresh_error(self, file_path, error_message):
-        """
-        Log file refresh error.
-        
-        Args:
-            file_path: Excel file that failed
-            error_message: Error description
-        
-        Future Implementation:
-            - Extract filename
-            - Log "✗ Failed to refresh {filename}: {error_message}"
-            - Use ERROR level (red)
-        """
-        pass
-    
-    def log_scheduler_event(self, event_type):
-        """
-        Log scheduler state changes.
-        
-        Args:
-            event_type: Event type (started, stopped, triggered)
-        
-        Future Implementation:
-            - Log "Scheduler {event_type}"
-            - Include next run time if applicable
-            - Use INFO level
-        """
-        pass
-    
-    def clear_ui_logs(self):
-        """
-        Clear logs from UI display only (not file).
-        
-        Future Implementation:
-            - Clear QTextEdit content
-            - Do NOT delete log file
-            - Log "Logs cleared" to file
-        """
-        pass
-    
-    def set_ui_widget(self, widget):
+    def set_ui_widget(self, widget: QTextEdit) -> None:
         """
         Set or update the UI log widget.
         
         Args:
             widget: QTextEdit widget for log display
-        
-        Future Implementation:
-            - Store widget reference
-            - Configure handler to output to widget
         """
-        pass
+        self.ui_widget = widget
+        
+        # Connect signal if not already connected
+        try:
+            self.signals.log_message.disconnect()
+        except:
+            pass
+        
+        self.signals.log_message.connect(self._append_to_ui)
     
-    def _format_timestamp(self):
+    def info(self, message: str) -> None:
         """
-        Generate formatted timestamp.
-        
-        Returns:
-            Timestamp string in format "YYYY-MM-DD HH:MM:SS"
-        
-        Future Implementation:
-            - Get current datetime
-            - Format as string
-            - Return formatted timestamp
-        """
-        pass
-    
-    def _append_to_ui(self, message, color):
-        """
-        Append colored text to UI widget.
+        Log an informational message.
         
         Args:
-            message: Text to append
-            color: HTML color code or name
-        
-        Future Implementation:
-            - Format message with color HTML tags
-            - Append to QTextEdit
-            - Auto-scroll to bottom
+            message: Log message text
         """
-        pass
+        self._log(message, 'INFO')
+    
+    def success(self, message: str) -> None:
+        """
+        Log a success message (custom level).
+        
+        Args:
+            message: Success message text
+        """
+        self._log(message, 'SUCCESS')
+    
+    def warning(self, message: str) -> None:
+        """
+        Log a warning message.
+        
+        Args:
+            message: Warning message text
+        """
+        self._log(message, 'WARNING')
+    
+    def error(self, message: str, exception: Optional[Exception] = None) -> None:
+        """
+        Log an error message.
+        
+        Args:
+            message: Error message text
+            exception: Optional exception object for detailed logging
+        """
+        if exception:
+            message = f"{message} | Exception: {str(exception)}"
+        self._log(message, 'ERROR')
+    
+    def debug(self, message: str) -> None:
+        """
+        Log a debug message.
+        
+        Args:
+            message: Debug message text
+        """
+        self._log(message, 'DEBUG')
+    
+    def _log(self, message: str, level: str) -> None:
+        """
+        Internal logging method.
+        
+        Args:
+            message: Log message
+            level: Log level (INFO, SUCCESS, WARNING, ERROR, DEBUG)
+        """
+        # Log to file (map SUCCESS to INFO for standard logging)
+        file_level = level if level != 'SUCCESS' else 'INFO'
+        log_method = getattr(self.logger, file_level.lower(), self.logger.info)
+        log_method(message)
+        
+        # Emit signal for UI update (thread-safe)
+        self.signals.log_message.emit(message, level)
+    
+    def _append_to_ui(self, message: str, level: str) -> None:
+        """
+        Append formatted message to UI widget.
+        
+        Args:
+            message: Log message
+            level: Log level for color coding
+        
+        This method runs in the main thread (via Qt signal).
+        """
+        if not self.ui_widget:
+            return
+        
+        # Get color for level
+        color = self.COLORS.get(level, '#FFFFFF')
+        
+        # Format timestamp
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        
+        # Create HTML formatted message
+        html_message = (
+            f'<span style="color: #666666;">[{timestamp}]</span> '
+            f'<span style="color: {color}; font-weight: bold;">[{level}]</span> '
+            f'<span style="color: {color};">{message}</span>'
+        )
+        
+        # Append to widget
+        self.ui_widget.append(html_message)
+        
+        # Auto-scroll to bottom
+        cursor = self.ui_widget.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        self.ui_widget.setTextCursor(cursor)
+    
+    def clear_ui_logs(self) -> None:
+        """
+        Clear logs from UI display only (file logs remain).
+        """
+        if self.ui_widget:
+            self.ui_widget.clear()
+            self.info("UI logs cleared")
+    
+    # ═══════════════════════════════════════════════════════════════
+    # Specialized Logging Methods
+    # ═══════════════════════════════════════════════════════════════
+    
+    def log_refresh_start(self, file_path: str) -> None:
+        """Log the start of a file refresh operation."""
+        filename = os.path.basename(file_path)
+        self.info(f"Starting refresh: {filename}")
+    
+    def log_refresh_success(self, file_path: str, duration: float) -> None:
+        """Log successful file refresh."""
+        filename = os.path.basename(file_path)
+        self.success(f"✓ Refreshed: {filename} ({duration:.1f}s)")
+    
+    def log_refresh_error(self, file_path: str, error_message: str) -> None:
+        """Log file refresh error."""
+        filename = os.path.basename(file_path)
+        self.error(f"✗ Failed: {filename} - {error_message}")
+    
+    def log_scheduler_start(self, scheduled_time: str) -> None:
+        """Log scheduler start event."""
+        self.info(f"Scheduler started - Daily refresh at {scheduled_time}")
+    
+    def log_scheduler_stop(self) -> None:
+        """Log scheduler stop event."""
+        self.info("Scheduler stopped")
+    
+    def log_scheduler_trigger(self) -> None:
+        """Log scheduled refresh trigger."""
+        self.info("⏰ Scheduled refresh triggered")
+    
+    def log_file_added(self, file_path: str) -> None:
+        """Log file addition."""
+        filename = os.path.basename(file_path)
+        self.success(f"+ Added file: {filename}")
+    
+    def log_file_removed(self, file_path: str) -> None:
+        """Log file removal."""
+        filename = os.path.basename(file_path)
+        self.info(f"- Removed file: {filename}")
+    
+    def log_app_start(self) -> None:
+        """Log application start."""
+        self.info("=" * 60)
+        self.info("Master Refreshing App - Started")
+        self.info("=" * 60)
+    
+    def log_app_exit(self) -> None:
+        """Log application exit."""
+        self.info("Application shutting down...")
+    
+    def __repr__(self) -> str:
+        """String representation of Logger."""
+        return f"Logger(file={self.log_file}, ui_attached={self.ui_widget is not None})"
+
+
+# Singleton instance for global access
+_logger_instance: Optional[Logger] = None
+
+
+def get_logger() -> Logger:
+    """
+    Get the global logger instance.
+    
+    Returns:
+        Logger: The singleton logger instance
+    """
+    global _logger_instance
+    if _logger_instance is None:
+        _logger_instance = Logger()
+    return _logger_instance
+
+
+def init_logger(ui_widget: Optional[QTextEdit] = None, log_file: str = "logs/app.log") -> Logger:
+    """
+    Initialize the global logger instance.
+    
+    Args:
+        ui_widget: QTextEdit widget for log display
+        log_file: Path to log file
+    
+    Returns:
+        Logger: The initialized logger instance
+    """
+    global _logger_instance
+    _logger_instance = Logger(ui_widget, log_file)
+    return _logger_instance
+
+
+# Test code
+if __name__ == "__main__":
+    from PyQt6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton
+    import sys
+    
+    app = QApplication(sys.argv)
+    
+    # Create main window with log display
+    window = QMainWindow()
+    window.setWindowTitle("Logger Test")
+    window.resize(800, 600)
+    
+    central = QWidget()
+    layout = QVBoxLayout(central)
+    
+    # Log display
+    log_widget = QTextEdit()
+    log_widget.setReadOnly(True)
+    layout.addWidget(log_widget)
+    
+    # Test buttons
+    btn_info = QPushButton("Test INFO")
+    btn_success = QPushButton("Test SUCCESS")
+    btn_warning = QPushButton("Test WARNING")
+    btn_error = QPushButton("Test ERROR")
+    btn_clear = QPushButton("Clear Logs")
+    
+    layout.addWidget(btn_info)
+    layout.addWidget(btn_success)
+    layout.addWidget(btn_warning)
+    layout.addWidget(btn_error)
+    layout.addWidget(btn_clear)
+    
+    window.setCentralWidget(central)
+    
+    # Initialize logger
+    logger = init_logger(log_widget)
+    logger.log_app_start()
+    
+    # Connect buttons
+    btn_info.clicked.connect(lambda: logger.info("This is an info message"))
+    btn_success.clicked.connect(lambda: logger.success("Operation completed successfully!"))
+    btn_warning.clicked.connect(lambda: logger.warning("This is a warning message"))
+    btn_error.clicked.connect(lambda: logger.error("This is an error message"))
+    btn_clear.clicked.connect(logger.clear_ui_logs)
+    
+    # Test specialized methods
+    logger.log_file_added("C:/test/report.xlsx")
+    logger.log_refresh_start("C:/test/report.xlsx")
+    logger.log_refresh_success("C:/test/report.xlsx", 5.3)
+    logger.log_scheduler_start("06:00")
+    
+    window.show()
+    sys.exit(app.exec())

@@ -37,7 +37,8 @@ class ConfigHandler:
         "files": [],
         "schedule_time": "06:00",
         "auto_refresh_enabled": False,
-        "theme_mode": "modern"
+        "theme_mode": "modern",
+        "run_on_startup": False
     }
     
     def __init__(self, config_path: str = "config.json"):
@@ -156,6 +157,9 @@ class ConfigHandler:
         
         if isinstance(loaded_config.get("theme_mode"), str):
             validated["theme_mode"] = loaded_config["theme_mode"]
+        
+        if isinstance(loaded_config.get("run_on_startup"), bool):
+            validated["run_on_startup"] = loaded_config["run_on_startup"]
         
         return validated
     
@@ -388,6 +392,30 @@ class ConfigHandler:
         
         # Log: Theme mode changed
         # logging.info(f"Theme mode set to: {mode}")
+    
+    # ===== WINDOWS STARTUP MANAGEMENT =====
+    
+    def is_run_on_startup_enabled(self) -> bool:
+        """
+        Check if Windows startup auto-run is enabled.
+        
+        Returns:
+            True if startup is enabled, False otherwise
+        """
+        return self.config.get("run_on_startup", False)
+    
+    def set_run_on_startup_enabled(self, enabled: bool) -> None:
+        """
+        Set the Windows startup auto-run state.
+        
+        Args:
+            enabled: True to enable startup, False to disable
+        """
+        self.config["run_on_startup"] = bool(enabled)
+        self.save_config()
+        
+        # Log: Startup state changed
+        # logging.info(f"Windows startup {'enabled' if enabled else 'disabled'}")
     
     # ===== UTILITY METHODS =====
     
