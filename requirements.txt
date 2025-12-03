@@ -1,0 +1,11 @@
+# Master Refreshing App - Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# GUI Framework
+PyQt6>=6.6.0
+
+# Windows COM Automation for Excel
+pywin32>=306
+
+# Task Scheduling
+APScheduler>=3.10.0
