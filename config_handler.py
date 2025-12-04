@@ -21,6 +21,7 @@ import json
 import os
 from typing import List, Optional, Dict, Any
 from pathlib import Path
+from utils.paths import get_app_root
 
 
 class ConfigHandler:
@@ -38,7 +39,8 @@ class ConfigHandler:
         "schedule_time": "06:00",
         "auto_refresh_enabled": False,
         "theme_mode": "modern",
-        "run_on_startup": False
+        "run_on_startup": False,
+        "log_directory": None  # None means use default (app_root/logs)
     }
     
     def __init__(self, config_path: str = "config.json"):
@@ -47,8 +49,14 @@ class ConfigHandler:
         
         Args:
             config_path: Path to the configuration file (default: "config.json")
+                        Can be relative (resolved from app root) or absolute
         """
-        self.config_path = config_path
+        # Resolve path from app root if relative
+        if not os.path.isabs(config_path):
+            self.config_path = str(get_app_root() / config_path)
+        else:
+            self.config_path = config_path
+        
         self.config: Dict[str, Any] = {}
         
         # Load configuration on initialization
@@ -161,18 +169,50 @@ class ConfigHandler:
         if isinstance(loaded_config.get("run_on_startup"), bool):
             validated["run_on_startup"] = loaded_config["run_on_startup"]
         
+        # Handle log_directory (can be str or None)
+        if "log_directory" in loaded_config:
+            log_dir = loaded_config["log_directory"]
+            if log_dir is None or isinstance(log_dir, str):
+                validated["log_directory"] = log_dir
+        
         return validated
     
     # ===== FILE LIST MANAGEMENT =====
     
-    def get_files(self) -> List[str]:
+    def get_files(self) -> List[Dict[str, Any]]:
         """
         Get list of Excel files from configuration.
         
         Returns:
-            List of file paths (strings)
+            List of file metadata dictionaries with keys:
+                - path: str (file path)
+                - enabled: bool (default True)
+                - last_status: Optional[str]
+                - last_run: Optional[str] (ISO timestamp)
         """
-        return self.config.get("files", []).copy()
+        files = self.config.get("files", [])
+        
+        # Normalize old string format to new dict format
+        normalized_files = []
+        for file_entry in files:
+            if isinstance(file_entry, str):
+                # Old format: just a string path
+                normalized_files.append({
+                    "path": file_entry,
+                    "enabled": True,
+                    "last_status": None,
+                    "last_run": None
+                })
+            elif isinstance(file_entry, dict):
+                # New format: ensure all required fields exist
+                normalized_files.append({
+                    "path": file_entry.get("path", ""),
+                    "enabled": file_entry.get("enabled", True),
+                    "last_status": file_entry.get("last_status"),
+                    "last_run": file_entry.get("last_run")
+                })
+        
+        return normalized_files.copy()
     
     def add_file(self, file_path: str) -> bool:
         """
@@ -184,18 +224,23 @@ class ConfigHandler:
         Returns:
             True if file was added, False if already exists
         """
-        files = self.config.get("files", [])
+        files = self.get_files()  # Get normalized list
         
         # Normalize path for comparison (handle different path separators)
         normalized_path = os.path.normpath(file_path)
         
         # Check if file already exists (avoid duplicates)
-        normalized_files = [os.path.normpath(f) for f in files]
-        if normalized_path in normalized_files:
-            return False
+        for file_entry in files:
+            if os.path.normpath(file_entry["path"]) == normalized_path:
+                return False
         
-        # Add file and save
-        files.append(file_path)
+        # Add file with metadata and save
+        files.append({
+            "path": file_path,
+            "enabled": True,
+            "last_status": None,
+            "last_run": None
+        })
         self.config["files"] = files
         self.save_config()
         
@@ -230,14 +275,14 @@ class ConfigHandler:
         Returns:
             True if file was removed, False if not found
         """
-        files = self.config.get("files", [])
+        files = self.get_files()  # Get normalized list
         
         # Normalize path for comparison
         normalized_path = os.path.normpath(file_path)
         
         # Find and remove matching file
         original_count = len(files)
-        files = [f for f in files if os.path.normpath(f) != normalized_path]
+        files = [f for f in files if os.path.normpath(f["path"]) != normalized_path]
         
         if len(files) < original_count:
             self.config["files"] = files
@@ -281,7 +326,55 @@ class ConfigHandler:
         Returns:
             Number of files
         """
-        return len(self.config.get("files", []))
+        return len(self.get_files())
+    
+    def update_file_metadata(self, file_path: str, enabled: Optional[bool] = None, 
+                            last_status: Optional[str] = None, last_run: Optional[str] = None) -> bool:
+        """
+        Update metadata for a specific file.
+        
+        Args:
+            file_path: Path to the file to update
+            enabled: New enabled state (None to leave unchanged)
+            last_status: New last status (None to leave unchanged)
+            last_run: New last run timestamp (None to leave unchanged)
+        
+        Returns:
+            True if file was found and updated, False otherwise
+        """
+        files = self.get_files()
+        normalized_path = os.path.normpath(file_path)
+        
+        found = False
+        for file_entry in files:
+            if os.path.normpath(file_entry["path"]) == normalized_path:
+                if enabled is not None:
+                    file_entry["enabled"] = enabled
+                if last_status is not None:
+                    file_entry["last_status"] = last_status
+                if last_run is not None:
+                    file_entry["last_run"] = last_run
+                found = True
+                break
+        
+        if found:
+            self.config["files"] = files
+            self.save_config()
+        
+        return found
+    
+    def set_file_enabled(self, file_path: str, enabled: bool) -> bool:
+        """
+        Set the enabled state for a specific file.
+        
+        Args:
+            file_path: Path to the file
+            enabled: True to enable, False to disable
+        
+        Returns:
+            True if successful, False if file not found
+        """
+        return self.update_file_metadata(file_path, enabled=enabled)
     
     # ===== SCHEDULE TIME MANAGEMENT =====
     
@@ -416,6 +509,30 @@ class ConfigHandler:
         
         # Log: Startup state changed
         # logging.info(f"Windows startup {'enabled' if enabled else 'disabled'}")
+    
+    # ===== LOG DIRECTORY MANAGEMENT =====
+    
+    def get_log_directory(self) -> Optional[str]:
+        """
+        Get the configured log directory.
+        
+        Returns:
+            Log directory path, or None if using default
+        """
+        return self.config.get("log_directory")
+    
+    def set_log_directory(self, directory: Optional[str]) -> bool:
+        """
+        Set the log directory.
+        
+        Args:
+            directory: Directory path, or None to use default
+        
+        Returns:
+            True if successful
+        """
+        self.config["log_directory"] = directory
+        return self.save_config()
     
     # ===== UTILITY METHODS =====
     

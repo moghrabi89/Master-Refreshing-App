@@ -31,6 +31,7 @@ import hashlib
 import time
 from typing import Dict, List, Tuple, Optional, Callable, Any
 from pathlib import Path
+from utils.paths import get_app_root
 
 
 class IntegrityChecker:
@@ -70,10 +71,15 @@ class IntegrityChecker:
         Initialize the integrity checker.
         
         Args:
-            app_root: Root directory of the application (default: current directory)
+            app_root: Root directory of the application (default: uses get_app_root())
             log_callback: Optional callback function(message, level) for logging
         """
-        self.app_root = Path(app_root) if app_root else Path.cwd()
+        # Use centralized path resolution
+        if app_root is not None:
+            self.app_root = Path(app_root)
+        else:
+            self.app_root = get_app_root()
+        
         self.log_callback = log_callback
         self.manifest_path = self.app_root / self.MANIFEST_FILE
         

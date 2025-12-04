@@ -44,7 +44,7 @@ class FileManager:
             config_handler: ConfigHandler instance for persistence
         """
         self.config = config_handler
-        self._files: List[str] = []
+        self._files: List[Dict[str, Any]] = []
         
         # Load initial file list from configuration
         self.refresh_file_list()
@@ -61,29 +61,29 @@ class FileManager:
         # Log: File list refreshed from configuration
         # logging.debug(f"File list refreshed: {len(self._files)} files loaded")
     
-    def list_files(self) -> List[Dict[str, str]]:
+    def list_files(self) -> List[Dict[str, Any]]:
         """
-        Get list of all registered files with metadata.
+        Get list of all registered files with full metadata.
         
         Returns:
             List of dictionaries, each containing:
                 - name: File name (basename)
                 - path: Full absolute path
                 - extension: File extension (e.g., '.xlsx')
-        
-        Example:
-            [
-                {
-                    "name": "report.xlsx",
-                    "path": "C:/Documents/report.xlsx",
-                    "extension": ".xlsx"
-                }
-            ]
+                - enabled: bool
+                - last_status: Optional[str]
+                - last_run: Optional[str]
+                - exists: str ('True' or 'False')
+                - size: str (formatted file size)
         """
         files_metadata = []
         
-        for file_path in self._files:
-            metadata = self.get_metadata(file_path)
+        for file_entry in self._files:
+            metadata = self.get_metadata(file_entry["path"])
+            # Add Phase 2 metadata
+            metadata["enabled"] = file_entry.get("enabled", True)
+            metadata["last_status"] = file_entry.get("last_status")
+            metadata["last_run"] = file_entry.get("last_run")
             files_metadata.append(metadata)
         
         return files_metadata
@@ -122,13 +122,13 @@ class FileManager:
         # Check for duplicates (case-insensitive on Windows)
         normalized_path = os.path.normpath(abs_path).lower()
         for existing_file in self._files:
-            if os.path.normpath(existing_file).lower() == normalized_path:
+            if os.path.normpath(existing_file["path"]).lower() == normalized_path:
                 return False, f"File already in list: {os.path.basename(abs_path)}"
         
         # Add to configuration
         if self.config.add_file(abs_path):
-            # Update internal list
-            self._files.append(abs_path)
+            # Reload internal list to get new entry with all metadata
+            self.refresh_file_list()
             
             # Log: File added successfully
             # logging.info(f"Added file: {abs_path}")
@@ -194,7 +194,9 @@ class FileManager:
         normalized_input = os.path.normpath(file_path).lower()
         
         for existing_file in self._files:
-            normalized_existing = os.path.normpath(existing_file).lower()
+            # Extract path from dict
+            existing_path = existing_file["path"]
+            normalized_existing = os.path.normpath(existing_path).lower()
             
             # Match by full path or basename
             if (normalized_existing == normalized_input or 
@@ -206,17 +208,18 @@ class FileManager:
             return False, f"File not found in list: {os.path.basename(file_path)}"
         
         # Remove from configuration
-        if self.config.remove_file(file_to_remove):
+        removed_path = file_to_remove["path"]
+        if self.config.remove_file(removed_path):
             # Update internal list
             self._files.remove(file_to_remove)
             
             # Log: File removed successfully
-            # logging.info(f"Removed file: {file_to_remove}")
+            # logging.info(f"Removed file: {removed_path}")
             
             # Placeholder: Signal for UI update
-            # signal_file_removed.emit(file_to_remove)
+            # signal_file_removed.emit(removed_path)
             
-            return True, f"Successfully removed: {os.path.basename(file_to_remove)}"
+            return True, f"Successfully removed: {os.path.basename(removed_path)}"
         else:
             return False, "Failed to remove file from configuration"
     
@@ -391,6 +394,89 @@ class FileManager:
             "removed_count": len(invalid_files)
         }
     
+    def validate_file_paths(self) -> List[str]:
+        """
+        Validate all files and remove non-existent ones.
+        
+        This method is designed to be called during application startup to
+        automatically clean up missing files from the configuration.
+        
+        Returns:
+            List[str]: List of file paths that were removed (missing files)
+        
+        Example:
+            removed = file_manager.validate_file_paths()
+            if removed:
+                for path in removed:
+                    logger.warning(f"Removed missing file: {path}")
+        """
+        missing_files = []
+        
+        # Iterate through a copy of the list to avoid modification during iteration
+        for file_entry in self._files[:]:
+            file_path = file_entry["path"]
+            if not self.file_exists(file_path):
+                missing_files.append(file_path)
+                # Remove from internal list
+                self._files.remove(file_entry)
+        
+        # Update configuration if any files were removed
+        if missing_files:
+            # Save the updated file list to configuration
+            self.config.config["files"] = self._files
+            self.config.save_config()
+        
+        return missing_files
+    
+    def set_file_enabled(self, file_path: str, enabled: bool) -> bool:
+        """
+        Set the enabled state for a specific file.
+        
+        Args:
+            file_path: Path to the file
+            enabled: True to enable, False to disable
+        
+        Returns:
+            True if successful, False if file not found
+        """
+        success = self.config.set_file_enabled(file_path, enabled)
+        if success:
+            # Reload internal list to sync with config
+            self.refresh_file_list()
+        return success
+    
+    def update_file_status(self, file_path: str, last_status: str, last_run: str) -> bool:
+        """
+        Update the last status and last run time for a file.
+        
+        Args:
+            file_path: Path to the file
+            last_status: Status string ("Success", "Error", "Skipped", "Disabled")
+            last_run: ISO timestamp string
+        
+        Returns:
+            True if successful, False if file not found
+        """
+        success = self.config.update_file_metadata(file_path, last_status=last_status, last_run=last_run)
+        if success:
+            # Update internal list entry
+            normalized_path = os.path.normpath(file_path)
+            for file_entry in self._files:
+                if os.path.normpath(file_entry["path"]) == normalized_path:
+                    file_entry["last_status"] = last_status
+                    file_entry["last_run"] = last_run
+                    break
+        return success
+    
+    def get_enabled_files(self) -> List[str]:
+        """
+        Get list of file paths for files that are enabled.
+        
+        Returns:
+            List of file paths (strings) where enabled=True
+        """
+        return [f["path"] for f in self._files if f.get("enabled", True)]
+    
     def get_file_count(self) -> int:
         """
         Get the total number of files in the list.
@@ -415,8 +501,8 @@ class FileManager:
             ext_lower = '.' + ext_lower
         
         return [
-            f for f in self._files 
-            if os.path.splitext(f)[1].lower() == ext_lower
+            f["path"] for f in self._files 
+            if os.path.splitext(f["path"])[1].lower() == ext_lower
         ]
     
     def search_files(self, search_term: str) -> List[Dict[str, str]]:
@@ -432,7 +518,8 @@ class FileManager:
         search_lower = search_term.lower()
         results = []
         
-        for file_path in self._files:
+        for file_entry in self._files:
+            file_path = file_entry["path"]
             if search_lower in os.path.basename(file_path).lower():
                 results.append(self.get_metadata(file_path))
         

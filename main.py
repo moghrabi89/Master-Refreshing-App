@@ -26,9 +26,11 @@ Version: 1.0.0 - Production Ready
 import sys
 import os
 import traceback
+import pythoncom
+from datetime import datetime
 from typing import Optional, List
 from PyQt6.QtWidgets import (
-    QApplication, QMessageBox, QFileDialog, QTableWidgetItem, QMenuBar, QMenu
+    QApplication, QMessageBox, QFileDialog, QTableWidgetItem, QMenuBar, QMenu, QCheckBox, QWidget, QHBoxLayout
 )
 from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt, QTime
 from PyQt6.QtGui import QCursor, QAction
@@ -45,6 +47,8 @@ from theme import get_theme, ThemeManager
 from startup_manager import StartupManager
 from integrity_checker import IntegrityChecker
 from integrity_ui import IntegrityDetailsWindow
+from settings_dialog import SettingsDialog
+from single_instance import SingleInstanceManager
 
 
 class RefreshWorker(QObject):
@@ -75,6 +79,9 @@ class RefreshWorker(QObject):
     
     def run(self):
         """Execute refresh operation in background thread with progress tracking."""
+        # Initialize COM for this thread
+        pythoncom.CoInitialize()
+        
         try:
             self.started.emit()
             
@@ -98,6 +105,9 @@ class RefreshWorker(QObject):
         except Exception as e:
             error_msg = f"Refresh worker error: {str(e)}\n{traceback.format_exc()}"
             self.error.emit(error_msg)
+        finally:
+            # Uninitialize COM for this thread
+            pythoncom.CoUninitialize()
     
     def _log_callback(self, message: str, level: str):
         """Callback for refresher logs."""
@@ -167,6 +177,9 @@ class Application(QObject):
         # State tracking
         self.is_refreshing = False
         self.scheduler_running = False
+        
+        # Single instance manager (set by main())
+        self.single_instance_manager: Optional[SingleInstanceManager] = None
     
     def initialize(self) -> bool:
         """
@@ -187,7 +200,7 @@ class Application(QObject):
                 os.makedirs("logs")
             
             # Logger will be fully initialized after UI is created
-            self.logger = init_logger(log_file="logs/app.log")
+            self.logger = init_logger(log_file="logs/app.log", config_handler=self.config)
             self.logger.log_app_start()
             
             # 4. Initialize file manager
@@ -266,6 +279,26 @@ class Application(QObject):
         if menubar is None:
             menubar = QMenuBar(self.main_window)
             self.main_window.setMenuBar(menubar)
+        
+        # File menu
+        file_menu: Optional[QMenu] = menubar.addMenu("&File") if menubar is not None else None
+        if file_menu is None:
+            self.logger.error("Failed to create File menu: menubar is None")
+            return
+        
+        # Settings action
+        settings_action = QAction("⚙️ Settings", self.main_window)
+        settings_action.setStatusTip("Configure application settings")
+        settings_action.triggered.connect(self.show_settings_dialog)
+        file_menu.addAction(settings_action)
+        
+        file_menu.addSeparator()
+        
+        # Exit action
+        exit_action = QAction("❌ Exit", self.main_window)
+        exit_action.setStatusTip("Exit application")
+        exit_action.triggered.connect(self.handle_exit)
+        file_menu.addAction(exit_action)
         
         # Tools menu
         tools_menu: Optional[QMenu] = menubar.addMenu("&Tools") if menubar is not None else None
@@ -384,7 +417,18 @@ class Application(QObject):
         self.logger.debug(f"Integrity check completed in {self.integrity_checker.verification_time_ms:.1f}ms")
     
     def _load_initial_state(self):
-        """Load initial state from configuration."""
+        """Load initial state from configuration and validate files."""
+        # Validate file paths and remove missing files
+        missing_files = self.file_manager.validate_file_paths()
+        
+        if missing_files:
+            # Log each removed file
+            for file_path in missing_files:
+                self.logger.warning(f"Removed missing file from configuration: {file_path}")
+            
+            # Log summary
+            self.logger.warning(f"Startup validation removed {len(missing_files)} missing file(s) from configuration")
+        
         # Load files into table
         files = self.file_manager.list_files()
         self._update_file_table(files)
@@ -469,7 +513,8 @@ class Application(QObject):
         # Get file paths to remove
         files_to_remove = []
         for row in selected_rows:
-            item = self.main_window.file_table.item(row.row(), 1)
+            # Column 2 now contains the full path (was column 1 before)
+            item = self.main_window.file_table.item(row.row(), 2)
             if item is None:
                 continue
             file_path = item.text()
@@ -502,31 +547,31 @@ class Application(QObject):
             )
             return
         
-        # Get file list
-        all_files = self.config.get_files()
+        # Get only enabled files
+        enabled_files = self.file_manager.get_enabled_files()
         
-        if not all_files:
+        if not enabled_files:
             QMessageBox.warning(
                 self.main_window,
                 "No Files",
-                "Please add Excel files before refreshing."
+                "Please add enabled Excel files before refreshing."
             )
             return
         
         # Start refresh in worker thread
-        self._start_refresh_worker(all_files)
+        self._start_refresh_worker(enabled_files)
     
     def handle_scheduled_refresh(self):
         """Handle scheduled refresh trigger from scheduler."""
         self.logger.log_scheduler_trigger()
         
-        # Get file list
-        all_files = self.config.get_files()
+        # Get only enabled files
+        enabled_files = self.file_manager.get_enabled_files()
         
-        if all_files:
-            self._start_refresh_worker(all_files)
+        if enabled_files:
+            self._start_refresh_worker(enabled_files)
         else:
-            self.logger.warning("Scheduled refresh aborted: No files to refresh")
+            self.logger.warning("Scheduled refresh aborted: No enabled files to refresh")
     
     def _start_refresh_worker(self, file_paths: List[str]):
         """Start refresh operation in worker thread with progress tracking."""
@@ -591,17 +636,25 @@ class Application(QObject):
         self.main_window.status_message.setText(f"Processing: {file_name}")
     
     def _on_file_completed(self, file_path: str, status: str):
-        """Handle file processing completion."""
-        file_name = os.path.basename(file_path)
-        if status == 'success':
-            # Already logged by refresher
-            pass
-        elif status == 'skipped':
-            # Already logged by refresher
-            pass
-        elif status == 'error':
-            # Already logged by refresher
-            pass
+        """Handle file processing completion and update status."""
+        # Map worker status to display status
+        status_map = {
+            'completed': 'Success',
+            'success': 'Success',
+            'error': 'Error',
+            'skipped': 'Skipped'
+        }
+        display_status = status_map.get(status, status.capitalize())
+        
+        # Get current timestamp in ISO format
+        timestamp = datetime.now().isoformat()
+        
+        # Update file status in config and file manager
+        self.file_manager.update_file_status(file_path, display_status, timestamp)
+        
+        # Update the file table to show new status
+        files = self.file_manager.list_files()
+        self._update_file_table(files)
     
     def _on_refresh_finished(self, results: dict):
         """Handle refresh completion."""
@@ -809,6 +862,19 @@ class Application(QObject):
     # UTILITY METHODS
     # ═══════════════════════════════════════════════════════════════
     
+    def show_settings_dialog(self):
+        """Show settings configuration dialog."""
+        try:
+            dialog = SettingsDialog(self.config, self.main_window)
+            dialog.exec()
+        except Exception as e:
+            self.logger.error(f"Failed to show settings dialog: {e}")
+            QMessageBox.critical(
+                self.main_window,
+                "Error",
+                f"Failed to open settings dialog:\n\n{str(e)}"
+            )
+    
     def show_integrity_details(self):
         """Show detailed integrity verification window."""
         try:
@@ -871,14 +937,65 @@ class Application(QObject):
             row = table.rowCount()
             table.insertRow(row)
             
-            # File name
-            table.setItem(row, 0, QTableWidgetItem(file_data['name']))
+            # Column 0: Enabled (checkbox)
+            enabled = file_data.get('enabled', True)
+            checkbox = QCheckBox()
+            checkbox.setChecked(enabled)
+            checkbox.setProperty("file_path", file_data['path'])  # Store path for reference
+            checkbox.stateChanged.connect(self._handle_checkbox_toggle)
             
-            # Full path
-            table.setItem(row, 1, QTableWidgetItem(file_data['path']))
+            # Center the checkbox
+            checkbox_widget = QWidget()
+            checkbox_layout = QHBoxLayout(checkbox_widget)
+            checkbox_layout.addWidget(checkbox)
+            checkbox_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            checkbox_layout.setContentsMargins(0, 0, 0, 0)
+            table.setCellWidget(row, 0, checkbox_widget)
             
-            # Extension
-            table.setItem(row, 2, QTableWidgetItem(file_data['extension']))
+            # Column 1: File Name
+            table.setItem(row, 1, QTableWidgetItem(file_data['name']))
+            
+            # Column 2: Full Path
+            table.setItem(row, 2, QTableWidgetItem(file_data['path']))
+            
+            # Column 3: Extension
+            table.setItem(row, 3, QTableWidgetItem(file_data['extension']))
+            
+            # Column 4: Last Status
+            last_status = file_data.get('last_status') or 'Never Run'
+            table.setItem(row, 4, QTableWidgetItem(last_status))
+            
+            # Column 5: Last Refresh
+            last_run = file_data.get('last_run')
+            if last_run:
+                # Format ISO timestamp to human-readable
+                try:
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(last_run)
+                    formatted_time = dt.strftime('%Y-%m-%d %H:%M:%S')
+                except:
+                    formatted_time = last_run
+            else:
+                formatted_time = 'Never'
+            table.setItem(row, 5, QTableWidgetItem(formatted_time))
+    
+    def _handle_checkbox_toggle(self, state):
+        """Handle enable/disable checkbox toggle."""
+        sender = self.sender()
+        if isinstance(sender, QCheckBox):
+            file_path = sender.property("file_path")
+            enabled = (state == Qt.CheckState.Checked.value)
+            
+            # Update file manager
+            success = self.file_manager.set_file_enabled(file_path, enabled)
+            
+            status_bar = self.main_window.statusBar()
+            if status_bar is not None:
+                if success:
+                    status = "enabled" if enabled else "disabled"
+                    status_bar.showMessage(f"File {status}: {os.path.basename(file_path)}", 3000)
+                else:
+                    status_bar.showMessage("Failed to update file status", 3000)
     
     def _update_file_count(self):
         """Update the file count in status bar."""
@@ -898,6 +1015,24 @@ class Application(QObject):
         """
         self.main_window.show()
         return QApplication.instance().exec()  # type: ignore
+    
+    def bring_to_front(self):
+        """
+        Bring the main window to front and activate it.
+        Called when a secondary instance requests activation.
+        """
+        # If window is minimized or hidden, restore it
+        if self.main_window.isMinimized():
+            self.main_window.showNormal()
+        elif not self.main_window.isVisible():
+            self.main_window.show()
+        
+        # Raise window above others and activate
+        self.main_window.raise_()
+        self.main_window.activateWindow()
+        
+        # Log the activation
+        self.logger.info("Main window activated by secondary instance request")
     
     def handle_exit(self):
         """Handle application exit."""
@@ -930,6 +1065,10 @@ class Application(QObject):
         # Hide tray icon
         if self.tray_manager:
             self.tray_manager.hide()
+        
+        # Cleanup single instance server
+        if self.single_instance_manager:
+            self.single_instance_manager.cleanup()
         
         # Save configuration
         if self.config:
@@ -1007,11 +1146,37 @@ def main():
     # Setup global exception handler
     setup_exception_handler()
     
+    # ═══════════════════════════════════════════════════════════════
+    # SINGLE INSTANCE CHECK
+    # ═══════════════════════════════════════════════════════════════
+    
+    single_instance = SingleInstanceManager()
+    
+    if not single_instance.try_start_as_primary():
+        # Another instance is already running
+        print("Another instance is already running. Activating existing window...")
+        
+        # Try to signal the existing instance to show its window
+        if single_instance.signal_existing_instance():
+            print("Successfully signaled existing instance.")
+            return 0
+        else:
+            print("Warning: Failed to signal existing instance, but it appears to be running.")
+            return 1
+    
+    # We are the primary instance - continue startup
+    print("Starting as primary instance...")
+    
     # Create application controller
     application = Application()
+    application.single_instance_manager = single_instance
+    
+    # Connect single instance activation signal to bring_to_front
+    single_instance.activate_window.connect(application.bring_to_front)
     
     # Initialize application
     if not application.initialize():
+        single_instance.cleanup()
         return 1
     
     # Run application

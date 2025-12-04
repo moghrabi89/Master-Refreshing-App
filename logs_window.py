@@ -28,6 +28,7 @@ from typing import Optional
 from PyQt6.QtWidgets import QTextEdit
 from PyQt6.QtCore import QObject, pyqtSignal, Qt
 from PyQt6.QtGui import QTextCursor
+from utils.paths import get_app_root
 
 
 class LogSignals(QObject):
@@ -72,16 +73,38 @@ class Logger:
         'DEBUG': '#00FFFF'      # Cyan
     }
     
-    def __init__(self, ui_widget: Optional[QTextEdit] = None, log_file: str = "logs/app.log"):
+    def __init__(self, ui_widget: Optional[QTextEdit] = None, log_file: str = "logs/app.log", config_handler=None):
         """
         Initialize the logging system.
         
         Args:
             ui_widget: QTextEdit widget for log display (can be set later)
-            log_file: Path to log file (default: logs/app.log)
+            log_file: Path to log file (default: logs/app.log, resolved from app root)
+            config_handler: Optional ConfigHandler instance to read custom log directory
         """
         self.ui_widget = ui_widget
-        self.log_file = log_file
+        self.config_handler = config_handler
+        
+        # Determine log directory
+        log_dir = None
+        if config_handler:
+            try:
+                custom_log_dir = config_handler.get_log_directory()
+                if custom_log_dir and os.path.isdir(custom_log_dir):
+                    log_dir = custom_log_dir
+            except:
+                pass  # Fall back to default
+        
+        # Use custom directory or default
+        if log_dir:
+            self.log_file = os.path.join(log_dir, "app.log")
+        else:
+            # Resolve log file path from app root if relative
+            if not os.path.isabs(log_file):
+                self.log_file = str(get_app_root() / log_file)
+            else:
+                self.log_file = log_file
+        
         self.signals = LogSignals()
         
         # Setup Python logging
@@ -96,16 +119,16 @@ class Logger:
         Configure Python logging with rotating file handler.
         
         Configuration:
-            - Log file: logs/app.log
+            - Log file: logs/app.log (resolved from app root)
             - Max size: 5MB per file
             - Backup count: 3 files
             - Format: [YYYY-MM-DD HH:MM:SS] [LEVEL] - Message
             - Encoding: UTF-8
         """
-        # Create logs directory if it doesn't exist
+        # Ensure logs directory exists (using parent of log file path)
         log_dir = os.path.dirname(self.log_file)
         if log_dir and not os.path.exists(log_dir):
-            os.makedirs(log_dir)
+            os.makedirs(log_dir, exist_ok=True)
         
         # Get logger instance
         self.logger = logging.getLogger('MasterRefreshingApp')
@@ -329,19 +352,20 @@ def get_logger() -> Logger:
     return _logger_instance
 
 
-def init_logger(ui_widget: Optional[QTextEdit] = None, log_file: str = "logs/app.log") -> Logger:
+def init_logger(ui_widget: Optional[QTextEdit] = None, log_file: str = "logs/app.log", config_handler=None) -> Logger:
     """
     Initialize the global logger instance.
     
     Args:
         ui_widget: QTextEdit widget for log display
         log_file: Path to log file
+        config_handler: Optional ConfigHandler to read custom log directory
     
     Returns:
         Logger: The initialized logger instance
     """
     global _logger_instance
-    _logger_instance = Logger(ui_widget, log_file)
+    _logger_instance = Logger(ui_widget, log_file, config_handler)
     return _logger_instance
 
 

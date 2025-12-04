@@ -2,14 +2,14 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
-![Python](https://img.shields.io/badge/python-3.9+-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
+![Python](https://img.shields.io/badge/python-3.13+-brightgreen.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-**أداة احترافية لتحديث ملفات Excel تلقائياً بشكل يومي***
+**أداة احترافية لتحديث ملفات Excel تلقائياً بشكل يومي مع إدارة متقدمة**
 
-**Professional Desktop Application for Automated Daily Excel File Refresh**
+**Professional Desktop Application for Automated Daily Excel File Refresh with Advanced Management**
 
 </div>
 
@@ -17,9 +17,9 @@
 
 ## 📋 نظرة عامة | Overview
 
-**Master Refreshing App** هو تطبيق سطح مكتب متطور مبني بلغة Python باستخدام PyQt6، مصمم لأتمتة عملية تحديث ملفات Excel التي تحتوي على اتصالات بيانات خارجية، PowerQuery، وجداول محورية. يعمل التطبيق بصمت في الخلفية وينفذ التحديثات المجدولة دون أي تدخل يدوي.
+**Master Refreshing App** هو تطبيق سطح مكتب متطور مبني بلغة Python باستخدام PyQt6، مصمم لأتمتة عملية تحديث ملفات Excel التي تحتوي على اتصالات بيانات خارجية، PowerQuery، وجداول محورية. يعمل التطبيق بصمت في الخلفية وينفذ التحديثات المجدولة دون أي تدخل يدوي. النسخة 1.1.0 تضيف ميزات متقدمة لإدارة الملفات وتتبع الحالة.
 
-**Master Refreshing App** is an advanced Python desktop application built with PyQt6, designed to automate the refresh process for Excel files containing external data connections, PowerQuery, and PivotTables. The application runs silently in the background and executes scheduled updates without manual intervention.
+**Master Refreshing App** is an advanced Python desktop application built with PyQt6, designed to automate the refresh process for Excel files containing external data connections, PowerQuery, and PivotTables. The application runs silently in the background and executes scheduled updates without manual intervention. Version 1.1.0 adds advanced file management and status tracking features.
 
 ---
 
@@ -29,9 +29,11 @@
 - تحديث تلقائي صامت لملفات Excel باستخدام COM automation
 - دعم PowerQuery، PivotTables، والاتصالات الخارجية
 - معالجة متعددة للملفات بشكل متسلسل
+- تتبع حالة كل ملف (نجاح/خطأ/متخطى) **جديد v1.1.0**
 - Silent Excel refresh using COM automation
 - Support for PowerQuery, PivotTables, and external connections
 - Sequential multi-file processing
+- Track status of each file (Success/Error/Skipped) **NEW v1.1.0**
 
 ### 📅 الجدولة اليومية | Daily Scheduling
 - جدولة تحديث يومية في وقت محدد قابل للتخصيص
@@ -43,13 +45,35 @@
 
 ### 🎯 إدارة متقدمة للملفات | Advanced File Management
 - إضافة وإزالة ملفات Excel بسهولة
+- **تفعيل/تعطيل ملفات فردية بدون حذف** **جديد v1.1.0**
+- **تتبع تاريخ آخر تحديث لكل ملف** **جديد v1.1.0**
+- **عرض حالة آخر عملية تحديث** **جديد v1.1.0**
 - دعم جميع صيغ Excel (.xlsx, .xlsm, .xlsb, .xls)
 - التحقق من صحة الملفات تلقائياً
 - منع التكرار
 - Easy add/remove Excel files
+- **Enable/disable individual files without deletion** **NEW v1.1.0**
+- **Track last refresh time for each file** **NEW v1.1.0**
+- **Display last operation status** **NEW v1.1.0**
 - Support for all Excel formats
 - Automatic file validation
 - Duplicate prevention
+
+### 🔒 نظام نسخة واحدة | Single Instance System
+- **منع تشغيل نسخ متعددة من التطبيق** **جديد v1.1.0**
+- **تفعيل النافذة تلقائياً عند محاولة تشغيل نسخة ثانية** **جديد v1.1.0**
+- **يعمل حتى مع النافذة المخفية في System Tray** **جديد v1.1.0**
+- **Prevent running multiple instances** **NEW v1.1.0**
+- **Auto-activate window when trying to launch second instance** **NEW v1.1.0**
+- **Works even with window hidden in System Tray** **NEW v1.1.0**
+
+### ⚙️ إعدادات قابلة للتخصيص | Customizable Settings
+- **إعدادات مركزية لمسار السجلات** **جديد v1.1.0**
+- **قائمة إعدادات منظمة في شريط القوائم** **جديد v1.1.0**
+- حفظ تلقائي لجميع التغييرات
+- **Centralized settings for log directory** **NEW v1.1.0**
+- **Organized settings menu in menu bar** **NEW v1.1.0**
+- Auto-save all changes
 
 ### 🌐 تكامل مع System Tray
 - التشغيل الصامت في خلفية النظام
@@ -96,7 +120,6 @@
 ```
 PyQt6 >= 6.6.0
 pywin32 >= 306
-APScheduler >= 3.10.0
 ```
 
 ---
@@ -157,17 +180,25 @@ python main.py
 
 ```
 Master Refreshing App/
-├── main.py                 # نقطة البداية | Entry point
-├── ui_main.py             # الواجهة الرسومية | UI implementation
-├── config_handler.py      # إدارة الإعدادات | Configuration manager
-├── file_manager.py        # إدارة الملفات | File management
-├── refresher.py           # محرك التحديث | Refresh engine
-├── scheduler.py           # نظام الجدولة | Scheduling system
-├── tray.py               # تكامل System Tray | Tray integration
-├── logs_window.py        # نظام السجلات | Logging system
-├── theme.py              # نظام الألوان | Theme manager
-├── resources/            # الموارد | Resources
-└── logs/                 # ملفات السجلات | Log files
+├── main.py                      # نقطة البداية | Entry point
+├── ui_main.py                  # الواجهة الرسومية | UI implementation
+├── config_handler.py           # إدارة الإعدادات | Configuration manager
+├── file_manager.py             # إدارة الملفات | File management
+├── refresher.py                # محرك التحديث | Refresh engine
+├── scheduler.py                # نظام الجدولة | Scheduling system
+├── tray.py                     # تكامل System Tray | Tray integration
+├── logs_window.py              # نظام السجلات | Logging system
+├── theme.py                    # نظام الألوان | Theme manager
+├── single_instance.py          # نظام النسخة الواحدة | Single instance [NEW v1.1.0]
+├── settings_dialog.py          # حوار الإعدادات | Settings dialog [NEW v1.1.0]
+├── integrity_checker.py        # فحص السلامة | Integrity checker
+├── integrity_ui.py             # واجهة السلامة | Integrity UI
+├── startup_manager.py          # إدارة بدء التشغيل | Startup manager
+├── utils/                      # أدوات مساعدة | Utilities [NEW v1.1.0]
+│   ├── __init__.py
+│   └── paths.py               # إدارة المسارات | Path management
+├── resources/                  # الموارد | Resources
+└── logs/                       # ملفات السجلات | Log files
 ```
 
 ### التقنيات المستخدمة | Technologies
@@ -227,7 +258,8 @@ Settings are automatically saved in `config.json`:
 ### حالة المشروع | Project Status
 - ✅ **v0.1.0**: البنية الأساسية والوحدات الرئيسية | Core structure and main modules
 - ✅ **v0.2.0**: تكامل كامل للواجهة والنظام | Full UI and system integration
-- ✅ **v1.0.0**: إصدار الإنتاج - نظام حماية السلامة والتوليد التلقائي للبيان | Production Release - Integrity protection system with auto-manifest generation
+- ✅ **v1.0.0**: إصدار الإنتاج - نظام حماية السلامة | Production Release - Integrity protection system
+- ✅ **v1.1.0**: إدارة متقدمة - تتبع الحالة، تفعيل/تعطيل الملفات، نظام نسخة واحدة | Advanced Management - Status tracking, file enable/disable, single instance
 - 📋 **المخطط | Planned**: ميزات إضافية وتحسينات | Additional features and improvements
 
 ### المساهمة | Contributing

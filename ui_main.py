@@ -140,8 +140,15 @@ class MainWindow(QMainWindow):
         # File table widget
         self.file_table = QTableWidget()
         self.file_table.setObjectName("fileTable")
-        self.file_table.setColumnCount(3)
-        self.file_table.setHorizontalHeaderLabels(["File Name", "Full Path", "Extension"])
+        self.file_table.setColumnCount(6)
+        self.file_table.setHorizontalHeaderLabels([
+            "Enabled", 
+            "File Name", 
+            "Full Path", 
+            "Extension", 
+            "Last Status", 
+            "Last Refresh"
+        ])
         
         # Configure table
         self.file_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -150,9 +157,12 @@ class MainWindow(QMainWindow):
         header = self.file_table.horizontalHeader()
         if header is not None:
             header.setStretchLastSection(False)
-            header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-            header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-            header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+            header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # Enabled (checkbox)
+            header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # File Name
+            header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)           # Full Path
+            header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Extension
+            header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Last Status
+            header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Last Refresh
         self.file_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         
         layout.addWidget(self.file_table)
