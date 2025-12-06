@@ -216,6 +216,10 @@ class ExcelRefresher:
             self._log(f"Opening workbook: {file_name}", "DEBUG")
             self._open_workbook(file_path)
             
+            # Step 3.5: Count rows BEFORE refresh
+            rows_before = self._get_workbook_row_count()
+            self._log(f"Rows before refresh: {rows_before}", "DEBUG")
+            
             # Step 4: Execute RefreshAll
             self._log(f"Executing RefreshAll: {file_name}", "DEBUG")
             self._execute_refresh()
@@ -223,6 +227,12 @@ class ExcelRefresher:
             # Step 5: Wait for refresh completion
             self._log(f"Waiting for refresh to complete: {file_name}", "DEBUG")
             self._wait_for_refresh_completion()
+            
+            # Step 5.5: Count rows AFTER refresh
+            rows_after = self._get_workbook_row_count()
+            added_rows = rows_after - rows_before
+            self._log(f"Rows after refresh: {rows_after}", "DEBUG")
+            self._log(f"Added rows: {added_rows}", "DEBUG")
             
             # Step 6: Save workbook
             self._log(f"Saving workbook: {file_name}", "DEBUG")
@@ -242,7 +252,10 @@ class ExcelRefresher:
                 "file": file_path,
                 "status": "success",
                 "message": success_msg,
-                "duration": duration
+                "duration": duration,
+                "rows_before": rows_before,
+                "rows_after": rows_after,
+                "added_rows": added_rows
             }
             
         except FileLockedError as e:
@@ -311,6 +324,38 @@ class ExcelRefresher:
             raise Exception("pywin32 not installed. Install with: pip install pywin32")
         except Exception as e:
             raise Exception(f"Failed to initialize Excel COM: {str(e)}")
+    
+    def _get_workbook_row_count(self) -> int:
+        """
+        Get the total number of used rows in the workbook.
+        
+        Returns:
+            int: Total number of rows in UsedRange across all sheets
+        """
+        try:
+            if not self.workbook:
+                return 0
+            
+            total_rows = 0
+            
+            # Iterate through all worksheets
+            for sheet in self.workbook.Worksheets:
+                try:
+                    # Get used range for this sheet
+                    used_range = sheet.UsedRange
+                    if used_range:
+                        # Count rows in this sheet
+                        sheet_rows = used_range.Rows.Count
+                        total_rows += sheet_rows
+                except Exception:
+                    # Skip sheets that can't be read
+                    continue
+            
+            return total_rows
+        
+        except Exception as e:
+            self._log(f"Warning: Could not count rows: {str(e)}", "WARNING")
+            return 0
     
     def _open_workbook(self, file_path: str) -> None:
         """

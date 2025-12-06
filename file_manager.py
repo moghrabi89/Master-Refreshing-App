@@ -272,7 +272,7 @@ class FileManager:
         
         return count
     
-    def get_metadata(self, file_path: str) -> Dict[str, str]:
+    def get_metadata(self, file_path: str) -> Dict[str, Any]:
         """
         Extract metadata for a specific file.
         
@@ -291,7 +291,7 @@ class FileManager:
         name = os.path.basename(abs_path)
         extension = os.path.splitext(abs_path)[1]
         
-        metadata = {
+        metadata: Dict[str, Any] = {
             "name": name,
             "path": abs_path,
             "extension": extension,
@@ -371,7 +371,8 @@ class FileManager:
         valid_files = []
         invalid_files = []
         
-        for file_path in self._files[:]:  # Copy list to avoid modification during iteration
+        for file_entry in self._files[:]:  # Copy list to avoid modification during iteration
+            file_path = file_entry["path"]
             if self.file_exists(file_path):
                 valid_files.append(file_path)
             else:

@@ -363,8 +363,9 @@ class IntegrityDetailsWindow(QDialog):
             # Generate manifest
             elapsed_ms = self.integrity_checker.generate_manifest(mode="manual")
             
-            # Re-run verification
+            # Re-run verification and get fresh report
             self.integrity_checker.verify_integrity()
+            new_report = self.integrity_checker.get_detailed_report()
             
             # Reload data
             self.load_integrity_data()
@@ -375,7 +376,7 @@ class IntegrityDetailsWindow(QDialog):
                 "✓ Manifest Generated",
                 f"Integrity manifest regenerated successfully!\n\n"
                 f"Generation time: {elapsed_ms:.1f}ms\n"
-                f"Files hashed: {self.report['total_files']}"
+                f"Files hashed: {new_report.get('total_files', 0)}"
             )
         
         except Exception as e:

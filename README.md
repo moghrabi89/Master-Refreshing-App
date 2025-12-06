@@ -2,14 +2,14 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.13+-brightgreen.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-**أداة احترافية لتحديث ملفات Excel تلقائياً بشكل يومي مع إدارة متقدمة**
+**أداة احترافية لتحديث ملفات Excel تلقائياً بشكل يومي مع إدارة متقدمة وتتبع البيانات**
 
-**Professional Desktop Application for Automated Daily Excel File Refresh with Advanced Management**
+**Professional Desktop Application for Automated Daily Excel File Refresh with Advanced Management and Data Tracking**
 
 </div>
 
@@ -17,9 +17,9 @@
 
 ## 📋 نظرة عامة | Overview
 
-**Master Refreshing App** هو تطبيق سطح مكتب متطور مبني بلغة Python باستخدام PyQt6، مصمم لأتمتة عملية تحديث ملفات Excel التي تحتوي على اتصالات بيانات خارجية، PowerQuery، وجداول محورية. يعمل التطبيق بصمت في الخلفية وينفذ التحديثات المجدولة دون أي تدخل يدوي. النسخة 1.1.0 تضيف ميزات متقدمة لإدارة الملفات وتتبع الحالة.
+**Master Refreshing App** هو تطبيق سطح مكتب متطور مبني بلغة Python باستخدام PyQt6، مصمم لأتمتة عملية تحديث ملفات Excel التي تحتوي على اتصالات بيانات خارجية، PowerQuery، وجداول محورية. يعمل التطبيق بصمت في الخلفية وينفذ التحديثات المجدولة دون أي تدخل يدوي. النسخة 1.2.0 تضيف ميزة تتبع عدد الصفوف قبل وبعد التحديث لمراقبة نمو البيانات.
 
-**Master Refreshing App** is an advanced Python desktop application built with PyQt6, designed to automate the refresh process for Excel files containing external data connections, PowerQuery, and PivotTables. The application runs silently in the background and executes scheduled updates without manual intervention. Version 1.1.0 adds advanced file management and status tracking features.
+**Master Refreshing App** is an advanced Python desktop application built with PyQt6, designed to automate the refresh process for Excel files containing external data connections, PowerQuery, and PivotTables. The application runs silently in the background and executes scheduled updates without manual intervention. Version 1.2.0 adds row count tracking feature to monitor data growth before and after each refresh.
 
 ---
 
@@ -29,11 +29,13 @@
 - تحديث تلقائي صامت لملفات Excel باستخدام COM automation
 - دعم PowerQuery، PivotTables، والاتصالات الخارجية
 - معالجة متعددة للملفات بشكل متسلسل
-- تتبع حالة كل ملف (نجاح/خطأ/متخطى) **جديد v1.1.0**
+- تتبع حالة كل ملف (نجاح/خطأ/متخطى)
+- **تتبع عدد الصفوف قبل وبعد التحديث** **جديد v1.2.0**
 - Silent Excel refresh using COM automation
 - Support for PowerQuery, PivotTables, and external connections
 - Sequential multi-file processing
-- Track status of each file (Success/Error/Skipped) **NEW v1.1.0**
+- Track status of each file (Success/Error/Skipped)
+- **Row count tracking before and after refresh** **NEW v1.2.0**
 
 ### 📅 الجدولة اليومية | Daily Scheduling
 - جدولة تحديث يومية في وقت محدد قابل للتخصيص
@@ -45,16 +47,18 @@
 
 ### 🎯 إدارة متقدمة للملفات | Advanced File Management
 - إضافة وإزالة ملفات Excel بسهولة
-- **تفعيل/تعطيل ملفات فردية بدون حذف** **جديد v1.1.0**
-- **تتبع تاريخ آخر تحديث لكل ملف** **جديد v1.1.0**
-- **عرض حالة آخر عملية تحديث** **جديد v1.1.0**
+- **تفعيل/تعطيل ملفات فردية بدون حذف**
+- **تتبع تاريخ آخر تحديث لكل ملف**
+- **عرض حالة آخر عملية تحديث**
+- **مراقبة نمو البيانات من خلال عدد الصفوف** **جديد v1.2.0**
 - دعم جميع صيغ Excel (.xlsx, .xlsm, .xlsb, .xls)
 - التحقق من صحة الملفات تلقائياً
 - منع التكرار
 - Easy add/remove Excel files
-- **Enable/disable individual files without deletion** **NEW v1.1.0**
-- **Track last refresh time for each file** **NEW v1.1.0**
-- **Display last operation status** **NEW v1.1.0**
+- **Enable/disable individual files without deletion**
+- **Track last refresh time for each file**
+- **Display last operation status**
+- **Monitor data growth through row counting** **NEW v1.2.0**
 - Support for all Excel formats
 - Automatic file validation
 - Duplicate prevention

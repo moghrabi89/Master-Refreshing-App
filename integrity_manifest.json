@@ -1,19 +1,19 @@
 {
   "_metadata": {
     "failed_files": 0,
-    "generated_at": "2025-12-04 12:38:30",
-    "generation_mode": "cli",
+    "generated_at": "2025-12-06 08:02:52",
+    "generation_mode": "manual",
     "hashed_files": 11,
     "missing_files": 0,
     "total_files": 11
   },
   "files": {
     "config_handler.py": "6a8927949480d68c648a98bf786bc4332976150c9a294667a1ca303d4ad2cabd",
-    "file_manager.py": "e5ca9635b672958d34603350a42e94f868642af31da41f092f9aaae02ef8feab",
+    "file_manager.py": "bfa0c82ba2061bb82e3c9a3477a93ef9b57bbf010f4e2efd01c705c3e81559f6",
     "integrity_checker.py": "bd9ff789caefa543c66a9870dd37250b74feb865777a7bb980dd37df9c85b484",
     "logs_window.py": "4dd39eac7fdcd1f06b742b4080add276f2f5552503d0fce623069563fc948066",
-    "main.py": "4d9b15f1d01e37dd50faf877506022fb9230210065a0bbc0885b01d557c3f845",
-    "refresher.py": "6c0d50d3018b33b48c4af962e0caf32b1348b83dde2cc73087504d533821bf5b",
+    "main.py": "9339b73f2a7f86fbcaef24e096f8727038cfcd9526dd522b00ad36332070ebe7",
+    "refresher.py": "1aca9381a4a399fe2005751f4aafda3843775ef61464fe34c902ff0295fb5f16",
     "scheduler.py": "10bfe0495ab2dc532357eeff298779fb4d840e35ed43ed0bd6faac9c5864dd1c",
     "startup_manager.py": "0b83bd363187593a1941bbe000ed8edd89fa319d29d547b3e74010e9e498124a",
     "theme.py": "aff45839f07c30cd8b07c3cd6b84e08dc24815177c4832a2eeb9d81caa0c5ba8",

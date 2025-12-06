@@ -680,6 +680,7 @@ class Application(QObject):
         skipped = results.get('skipped', 0)
         elapsed = results['elapsed_time']
         
+        # Log detailed results including row changes
         if skipped > 0:
             self.logger.info(
                 f"Refresh completed: {succeeded} succeeded, {failed} failed, {skipped} skipped ({elapsed:.1f}s)"
@@ -688,6 +689,19 @@ class Application(QObject):
             self.logger.info(
                 f"Refresh completed: {succeeded} succeeded, {failed} failed ({elapsed:.1f}s)"
             )
+        
+        # Log detailed row information for each successfully refreshed file
+        for file_result in results.get('results', []):
+            if file_result.get('status') == 'success' and 'added_rows' in file_result:
+                file_name = os.path.basename(file_result['file'])
+                rows_before = file_result.get('rows_before', 0)
+                rows_after = file_result.get('rows_after', 0)
+                added_rows = file_result.get('added_rows', 0)
+                
+                self.logger.info(f"Refresh completed for: {file_name}")
+                self.logger.info(f"Rows before: {rows_before}")
+                self.logger.info(f"Rows after:  {rows_after}")
+                self.logger.info(f"Added rows:  {added_rows}")
         
         # Show notification
         if self.tray_manager:
