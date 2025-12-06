@@ -32,8 +32,8 @@ from typing import Optional, List
 from PyQt6.QtWidgets import (
     QApplication, QMessageBox, QFileDialog, QTableWidgetItem, QMenuBar, QMenu, QCheckBox, QWidget, QHBoxLayout
 )
-from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt, QTime
-from PyQt6.QtGui import QCursor, QAction
+from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt, QTime, pyqtSlot
+from PyQt6.QtGui import QCursor, QAction, QColor
 
 # Import application modules
 from ui_main import MainWindow
@@ -65,17 +65,21 @@ class RefreshWorker(QObject):
     progress = pyqtSignal(str, str)  # (message, level) - for logs
     progress_update = pyqtSignal(int)  # percentage (0-100)
     progress_text = pyqtSignal(str)  # "Refreshing file X of Y"
+    wait_progress = pyqtSignal(int)  # 2-minute wait progress (0-100)
+    wait_time_remaining = pyqtSignal(str)  # Time remaining (MM:SS)
     file_started = pyqtSignal(str)  # file path being processed
     file_completed = pyqtSignal(str, str)  # (file path, status: success/error/skipped)
     finished = pyqtSignal(dict)  # results dictionary
     error = pyqtSignal(str)  # error message
     
-    def __init__(self, file_paths: List[str]):
+    def __init__(self, file_paths: List[str], timeout: int = 3600):
         super().__init__()
         self.file_paths = file_paths
         self.refresher = None
         self.total_files = len(file_paths)
         self.current_index = 0
+        self.timeout = timeout
+        self.stop_requested = False  # Flag to stop operation
     
     def run(self):
         """Execute refresh operation in background thread with progress tracking."""
@@ -85,19 +89,26 @@ class RefreshWorker(QObject):
         try:
             self.started.emit()
             
-            # Create refresher with callbacks
+            # Create refresher with callbacks and custom timeout
             self.refresher = ExcelRefresher(
                 file_paths=self.file_paths,
                 log_callback=self._log_callback,
-                progress_callback=self._progress_callback
+                progress_callback=self._progress_callback,
+                wait_progress_callback=self._wait_progress_callback,
+                timeout=self.timeout,
+                stop_check_callback=lambda: self.stop_requested  # Pass stop check
             )
             
             # Execute sequential refresh
             results = self.refresher.refresh_all_files()
             
-            # Emit 100% completion
-            self.progress_update.emit(100)
-            self.progress_text.emit(f"Completed all {self.total_files} files")
+            # Check if stopped by user
+            if self.stop_requested:
+                self.progress_text.emit("Refresh stopped by user")
+            else:
+                # Emit 100% completion
+                self.progress_update.emit(100)
+                self.progress_text.emit(f"Completed all {self.total_files} files")
             
             # Emit results
             self.finished.emit(results)
@@ -113,6 +124,11 @@ class RefreshWorker(QObject):
         """Callback for refresher logs."""
         self.progress.emit(message, level)
     
+    def _wait_progress_callback(self, percentage: int, time_remaining: str):
+        """Callback for 2-minute wait progress."""
+        self.wait_progress.emit(percentage)
+        self.wait_time_remaining.emit(time_remaining)
+    
     def _progress_callback(self, current: int, total: int, file_path: str, status: str):
         """
         Callback for progress updates during sequential refresh.
@@ -126,15 +142,17 @@ class RefreshWorker(QObject):
         # Calculate percentage
         percentage = int((current / total) * 100) if total > 0 else 0
         
+        file_name = os.path.basename(file_path)
+        
         # Emit progress signals
         if status == 'started':
             self.file_started.emit(file_path)
             self.progress_update.emit(percentage)
-            self.progress_text.emit(f"Refreshing file {current} of {total}...")
+            self.progress_text.emit(f"File {current}/{total}: {file_name}")
         elif status in ['completed', 'error', 'skipped']:
             self.file_completed.emit(file_path, status)
             self.progress_update.emit(percentage)
-            self.progress_text.emit(f"Processed {current} of {total} files")
+            self.progress_text.emit(f"Completed {current}/{total} files")
 
 
 class Application(QObject):
@@ -257,8 +275,9 @@ class Application(QObject):
         self.main_window.add_files_btn.clicked.connect(self.handle_add_files)
         self.main_window.remove_files_btn.clicked.connect(self.handle_remove_files)
         
-        # Refresh button
+        # Refresh buttons
         self.main_window.refresh_now_btn.clicked.connect(self.handle_manual_refresh)
+        self.main_window.stop_refresh_btn.clicked.connect(self.handle_stop_refresh)
         
         # Scheduler buttons
         self.main_window.start_scheduler_btn.clicked.connect(self.handle_start_scheduler)
@@ -561,6 +580,30 @@ class Application(QObject):
         # Start refresh in worker thread
         self._start_refresh_worker(enabled_files)
     
+    def handle_stop_refresh(self):
+        """Handle stop refresh button click."""
+        if not self.is_refreshing:
+            return
+        
+        # Confirm stop action
+        reply = QMessageBox.question(
+            self.main_window,
+            "Stop Refresh",
+            "Are you sure you want to stop the refresh operation?\n\nThe current file will be saved before stopping.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            self.is_stopping = True
+            self.logger.warning("⚠️ User requested to stop refresh operation")
+            self.main_window.status_message.setText("Stopping refresh operation...")
+            self.main_window.stop_refresh_btn.setEnabled(False)
+            
+            # Signal worker to stop
+            if self.refresh_worker:
+                self.refresh_worker.stop_requested = True
+    
     def handle_scheduled_refresh(self):
         """Handle scheduled refresh trigger from scheduler."""
         self.logger.log_scheduler_trigger()
@@ -576,9 +619,12 @@ class Application(QObject):
     def _start_refresh_worker(self, file_paths: List[str]):
         """Start refresh operation in worker thread with progress tracking."""
         self.is_refreshing = True
+        self.is_stopping = False
         
-        # Disable buttons
-        self.main_window.refresh_now_btn.setEnabled(False)
+        # Disable/Enable buttons
+        self.main_window.refresh_now_btn.setVisible(False)
+        self.main_window.stop_refresh_btn.setVisible(True)
+        self.main_window.stop_refresh_btn.setEnabled(True)
         self.main_window.add_files_btn.setEnabled(False)
         self.main_window.remove_files_btn.setEnabled(False)
         self.main_window.start_scheduler_btn.setEnabled(False)
@@ -595,9 +641,14 @@ class Application(QObject):
         # Update status
         self.main_window.status_message.setText(f"Refreshing {len(file_paths)} file(s)...")
         
-        # Create worker thread
+        # Get timeout from config
+        timeout = self.config.get_refresh_timeout()
+        timeout_minutes = timeout // 60
+        self.logger.info(f"Using refresh timeout: {timeout}s ({timeout_minutes} minutes)")
+        
+        # Create worker thread with custom timeout
         self.refresh_thread = QThread()
-        self.refresh_worker = RefreshWorker(file_paths)
+        self.refresh_worker = RefreshWorker(file_paths, timeout=timeout)
         self.refresh_worker.moveToThread(self.refresh_thread)
         
         # Connect signals
@@ -605,6 +656,8 @@ class Application(QObject):
         self.refresh_worker.progress.connect(self._on_refresh_progress)
         self.refresh_worker.progress_update.connect(self._on_progress_update)
         self.refresh_worker.progress_text.connect(self._on_progress_text)
+        self.refresh_worker.wait_progress.connect(self._on_wait_progress)
+        self.refresh_worker.wait_time_remaining.connect(self._on_wait_time_remaining)
         self.refresh_worker.file_started.connect(self._on_file_started)
         self.refresh_worker.file_completed.connect(self._on_file_completed)
         self.refresh_worker.finished.connect(self._on_refresh_finished)
@@ -622,21 +675,47 @@ class Application(QObject):
         """Handle refresh progress log updates (already logged by worker)."""
         pass
     
+    @pyqtSlot(int)
     def _on_progress_update(self, percentage: int):
         """Handle progress bar percentage update."""
         self.main_window.progress_bar.setValue(percentage)
+        QApplication.processEvents()  # Keep UI responsive
     
+    @pyqtSlot(int)
+    def _on_wait_progress(self, percentage: int):
+        """Handle 2-minute wait progress bar update."""
+        self.main_window.progress_bar.setValue(percentage)
+        QApplication.processEvents()  # Keep UI responsive
+    
+    @pyqtSlot(str)
+    def _on_wait_time_remaining(self, time_str: str):
+        """Handle countdown timer update."""
+        self.main_window.progress_label.setText(f"Time remaining: {time_str}")
+        QApplication.processEvents()  # Keep UI responsive
+    
+    @pyqtSlot(str)
     def _on_progress_text(self, text: str):
         """Handle progress label text update."""
         self.main_window.progress_label.setText(text)
+        QApplication.processEvents()  # Keep UI responsive
     
+    @pyqtSlot(str)
     def _on_file_started(self, file_path: str):
         """Handle file processing start."""
         file_name = os.path.basename(file_path)
         self.main_window.status_message.setText(f"Processing: {file_name}")
+        
+        # Highlight the current file being processed in the table
+        self._highlight_current_file(file_path, highlight=True)
+        
+        QApplication.processEvents()  # Keep UI responsive
     
+    @pyqtSlot(str, str)
     def _on_file_completed(self, file_path: str, status: str):
         """Handle file processing completion and update status."""
+        # Remove highlight from the completed file
+        self._highlight_current_file(file_path, highlight=False)
+        
         # Map worker status to display status
         status_map = {
             'completed': 'Success',
@@ -652,20 +731,22 @@ class Application(QObject):
         # Update file status in config and file manager
         self.file_manager.update_file_status(file_path, display_status, timestamp)
         
-        # Update the file table to show new status
-        files = self.file_manager.list_files()
-        self._update_file_table(files)
+        # Update only the specific row in the table (fast, no UI freeze)
+        self._update_file_row_status(file_path, display_status, timestamp)
     
+    @pyqtSlot(dict)
     def _on_refresh_finished(self, results: dict):
         """Handle refresh completion."""
         self.is_refreshing = False
+        self.is_stopping = False
         
         # Hide progress bar
         self.main_window.progress_container.setVisible(False)
         
         # Restore UI
         QApplication.restoreOverrideCursor()
-        self.main_window.refresh_now_btn.setEnabled(True)
+        self.main_window.refresh_now_btn.setVisible(True)
+        self.main_window.stop_refresh_btn.setVisible(False)
         self.main_window.add_files_btn.setEnabled(True)
         self.main_window.remove_files_btn.setEnabled(True)
         self.main_window.start_scheduler_btn.setEnabled(True)
@@ -724,16 +805,19 @@ class Application(QObject):
                     self.tray_manager.tray_icon.MessageIcon.Warning
                 )
     
+    @pyqtSlot(str)
     def _on_refresh_error(self, error_msg: str):
         """Handle refresh error."""
         self.is_refreshing = False
+        self.is_stopping = False
         
         # Hide progress bar
         self.main_window.progress_container.setVisible(False)
         
         # Restore UI
         QApplication.restoreOverrideCursor()
-        self.main_window.refresh_now_btn.setEnabled(True)
+        self.main_window.refresh_now_btn.setVisible(True)
+        self.main_window.stop_refresh_btn.setVisible(False)
         self.main_window.add_files_btn.setEnabled(True)
         self.main_window.remove_files_btn.setEnabled(True)
         self.main_window.start_scheduler_btn.setEnabled(True)
@@ -942,6 +1026,67 @@ class Application(QObject):
                 f"Failed to generate integrity manifest:\n\n{str(e)}"
             )
     
+    def _update_file_row_status(self, file_path: str, status: str, timestamp: str):
+        """Update a specific file row's status and timestamp (fast update)."""
+        table = self.main_window.file_table
+        
+        # Find the row for this file
+        row_found = False
+        for row in range(table.rowCount()):
+            path_item = table.item(row, 2)  # Column 2 is Full Path
+            if path_item and path_item.text() == file_path:
+                row_found = True
+                
+                # Update Column 4: Last Status
+                status_item = QTableWidgetItem(status)
+                table.setItem(row, 4, status_item)
+                
+                # Update Column 5: Last Refresh
+                try:
+                    dt = datetime.fromisoformat(timestamp)
+                    formatted_time = dt.strftime('%Y-%m-%d %H:%M:%S')
+                except:
+                    formatted_time = timestamp
+                
+                time_item = QTableWidgetItem(formatted_time)
+                table.setItem(row, 5, time_item)
+                
+                # Force UI update
+                QApplication.processEvents()
+                
+                self.logger.debug(f"Updated table row for {os.path.basename(file_path)}: Status={status}, Time={formatted_time}")
+                break
+        
+        if not row_found:
+            self.logger.warning(f"Could not find table row for: {file_path}")
+    
+    def _highlight_current_file(self, file_path: str, highlight: bool = True):
+        """Highlight or unhighlight the current file being processed."""
+        table = self.main_window.file_table
+        
+        for row in range(table.rowCount()):
+            path_item = table.item(row, 2)  # Column 2 is Full Path
+            if path_item and path_item.text() == file_path:
+                # Apply highlight to all columns in the row
+                if highlight:
+                    # Yellow background for current file
+                    bg_color = QColor(255, 255, 200)  # Light yellow
+                    fg_color = QColor(0, 0, 0)  # Black text
+                else:
+                    # Reset to default (white/transparent)
+                    bg_color = QColor(255, 255, 255)  # White
+                    fg_color = QColor(0, 0, 0)  # Black text
+                
+                for col in range(1, table.columnCount()):  # Skip column 0 (checkbox)
+                    item = table.item(row, col)
+                    if item:
+                        item.setBackground(bg_color)
+                        item.setForeground(fg_color)
+                
+                # Force UI update
+                QApplication.processEvents()
+                break
+    
     def _update_file_table(self, files: List[dict]):
         """Update the file table with file list."""
         table = self.main_window.file_table
@@ -973,11 +1118,14 @@ class Application(QObject):
             table.setItem(row, 2, QTableWidgetItem(file_data['path']))
             
             # Column 3: Extension
-            table.setItem(row, 3, QTableWidgetItem(file_data['extension']))
+            extension = file_data.get('extension', '')
+            ext_item = QTableWidgetItem(extension)
+            table.setItem(row, 3, ext_item)
             
             # Column 4: Last Status
             last_status = file_data.get('last_status') or 'Never Run'
-            table.setItem(row, 4, QTableWidgetItem(last_status))
+            status_item = QTableWidgetItem(last_status)
+            table.setItem(row, 4, status_item)
             
             # Column 5: Last Refresh
             last_run = file_data.get('last_run')

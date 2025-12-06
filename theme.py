@@ -210,6 +210,30 @@ class ThemeManager:
                 color: {self.TEXT_DARK_GRAY};
             }}
             
+            QPushButton#stopRefreshBtn {{
+                background: qlineargradient(
+                    x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {self.ERROR_RED},
+                    stop:1 #C82333
+                );
+                font-size: 13pt;
+                min-height: 55px;
+                color: white;
+            }}
+            
+            QPushButton#stopRefreshBtn:hover {{
+                background: qlineargradient(
+                    x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #E63946,
+                    stop:1 #DC143C
+                );
+            }}
+            
+            QPushButton#stopRefreshBtn:disabled {{
+                background: {self.BG_LIGHTER};
+                color: {self.TEXT_DARK_GRAY};
+            }}
+            
             QPushButton#removeFilesBtn {{
                 background: qlineargradient(
                     x1:0, y1:0, x2:1, y2:0,

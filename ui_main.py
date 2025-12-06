@@ -318,6 +318,15 @@ class MainWindow(QMainWindow):
         self.refresh_now_btn.setFont(refresh_font)
         layout.addWidget(self.refresh_now_btn)
         
+        # Stop button (initially hidden)
+        self.stop_refresh_btn = QPushButton("❌ Stop Refresh")
+        self.stop_refresh_btn.setObjectName("stopRefreshBtn")
+        self.stop_refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.stop_refresh_btn.setMinimumHeight(60)
+        self.stop_refresh_btn.setFont(refresh_font)
+        self.stop_refresh_btn.setVisible(False)  # Hidden by default
+        layout.addWidget(self.stop_refresh_btn)
+        
         return frame
     
     def create_logs_panel(self):

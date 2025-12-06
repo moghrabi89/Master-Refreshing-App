@@ -40,7 +40,8 @@ class ConfigHandler:
         "auto_refresh_enabled": False,
         "theme_mode": "modern",
         "run_on_startup": False,
-        "log_directory": None  # None means use default (app_root/logs)
+        "log_directory": None,  # None means use default (app_root/logs)
+        "refresh_timeout": 3600  # Timeout in seconds (default: 1 hour for large files)
     }
     
     def __init__(self, config_path: str = "config.json"):
@@ -533,6 +534,31 @@ class ConfigHandler:
         """
         self.config["log_directory"] = directory
         return self.save_config()
+    
+    # ===== REFRESH TIMEOUT MANAGEMENT =====
+    
+    def get_refresh_timeout(self) -> int:
+        """
+        Get the refresh timeout in seconds.
+        
+        Returns:
+            Timeout in seconds (default: 3600 = 1 hour)
+        """
+        return self.config.get("refresh_timeout", 3600)
+    
+    def set_refresh_timeout(self, timeout: int) -> None:
+        """
+        Set the refresh timeout in seconds.
+        
+        Args:
+            timeout: Timeout in seconds (minimum: 60)
+        """
+        # Ensure minimum timeout of 60 seconds
+        if timeout < 60:
+            timeout = 60
+        
+        self.config["refresh_timeout"] = timeout
+        self.save_config()
     
     # ===== UTILITY METHODS =====
     

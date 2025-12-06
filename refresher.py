@@ -36,8 +36,9 @@ class ExcelRefresher:
     """
     
     # Constants
-    DEFAULT_TIMEOUT = 600  # 10 minutes in seconds
-    POLL_INTERVAL = 1.0    # Check status every 1 second
+    REFRESH_WAIT_TIME = 120  # 2 minutes (120 seconds) fixed wait time
+    POLL_INTERVAL = 1.0      # Progress update every 1 second
+    DEFAULT_TIMEOUT = 3600   # 1 hour (not used with fixed 2-minute wait)
     
     # COM constants (defined locally to avoid import issues)
     xlCalculationAutomatic = -4105
@@ -50,6 +51,8 @@ class ExcelRefresher:
                  file_paths: Optional[List[str]] = None,
                  log_callback: Optional[Callable[[str, str], None]] = None,
                  progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
+                 wait_progress_callback: Optional[Callable[[int, str], None]] = None,
+                 stop_check_callback: Optional[Callable[[], bool]] = None,
                  timeout: int = DEFAULT_TIMEOUT):
         """
         Initialize the Excel refresh engine.
@@ -58,11 +61,15 @@ class ExcelRefresher:
             file_paths: List of Excel file paths to refresh (optional)
             log_callback: Callback function(message, level) for logging
             progress_callback: Callback function(current, total, file_path, status) for progress
+            wait_progress_callback: Callback function(percentage, time_remaining) for 2-minute wait progress
+            stop_check_callback: Callback function() returns True if stop requested
             timeout: Maximum time in seconds to wait for refresh (default: 600)
         """
         self.file_paths = file_paths or []
         self.log_callback = log_callback
         self.progress_callback = progress_callback
+        self.wait_progress_callback = wait_progress_callback
+        self.stop_check_callback = stop_check_callback
         self.timeout = timeout
         self.results: List[Dict[str, Any]] = []
         
@@ -105,6 +112,11 @@ class ExcelRefresher:
         
         for index, file_path in enumerate(self.file_paths, start=1):
             try:
+                # Check if stop requested
+                if self.stop_check_callback and self.stop_check_callback():
+                    self._log("⚠️ Refresh stopped by user", "WARNING")
+                    break
+                
                 # Emit progress: file started
                 if self.progress_callback:
                     self.progress_callback(index, total_files, file_path, 'started')
@@ -216,36 +228,41 @@ class ExcelRefresher:
             self._log(f"Opening workbook: {file_name}", "DEBUG")
             self._open_workbook(file_path)
             
-            # Step 3.5: Count rows BEFORE refresh
-            rows_before = self._get_workbook_row_count()
-            self._log(f"Rows before refresh: {rows_before}", "DEBUG")
+            # Give Excel time to fully load
+            time.sleep(1.0)
+            
+            # Count rows BEFORE refresh
+            self._log(f"Counting rows before refresh...", "DEBUG")
+            rows_before = self._get_workbook_row_count(detailed_log=False)
+            self._log(f"Rows before refresh: {rows_before:,}", "INFO")
             
             # Step 4: Execute RefreshAll
-            self._log(f"Executing RefreshAll: {file_name}", "DEBUG")
+            self._log(f"Executing RefreshAll: {file_name}", "INFO")
             self._execute_refresh()
             
-            # Step 5: Wait for refresh completion
-            self._log(f"Waiting for refresh to complete: {file_name}", "DEBUG")
-            self._wait_for_refresh_completion()
+            # Step 5: Wait 2 minutes with progress updates
+            self._log(f"Waiting 2 minutes for refresh to complete...", "INFO")
+            self._wait_with_progress()
             
-            # Step 5.5: Count rows AFTER refresh
-            rows_after = self._get_workbook_row_count()
+            # Count rows AFTER refresh
+            self._log(f"Counting rows after refresh...", "DEBUG")
+            rows_after = self._get_workbook_row_count(detailed_log=False)
             added_rows = rows_after - rows_before
-            self._log(f"Rows after refresh: {rows_after}", "DEBUG")
-            self._log(f"Added rows: {added_rows}", "DEBUG")
+            self._log(f"Rows after refresh: {rows_after:,}", "INFO")
+            self._log(f"Added rows: {added_rows:+,}", "SUCCESS")
             
-            # Step 6: Save workbook
-            self._log(f"Saving workbook: {file_name}", "DEBUG")
+            # Step 6: Save and close workbook
+            self._log(f"Saving workbook: {file_name}", "INFO")
             self._save_workbook()
             
-            # Step 7: Close workbook
-            self._log(f"Closing workbook: {file_name}", "DEBUG")
-            self._close_workbook()
+            self._log(f"Closing workbook: {file_name}", "INFO")
+            self._close_workbook(save_changes=True)
             
             # Calculate duration
             duration = time.time() - start_time
             
-            success_msg = f"Successfully refreshed: {file_name} ({duration:.1f}s)"
+            # Step 7: Display success report in log
+            success_msg = f"✓ Completed: {file_name} | Duration: {duration:.1f}s | Rows: {rows_before:,} → {rows_after:,} ({added_rows:+,})"
             self._log(success_msg, "SUCCESS")
             
             return {
@@ -325,31 +342,44 @@ class ExcelRefresher:
         except Exception as e:
             raise Exception(f"Failed to initialize Excel COM: {str(e)}")
     
-    def _get_workbook_row_count(self) -> int:
+    def _get_workbook_row_count(self, detailed_log: bool = False) -> int:
         """
         Get the total number of used rows in the workbook.
         
+        Args:
+            detailed_log: If True, log details for each sheet
+        
         Returns:
-            int: Total number of rows in UsedRange across all sheets
+            int: Total number of rows across all sheets
         """
         try:
             if not self.workbook:
                 return 0
             
             total_rows = 0
+            sheet_count = 0
+            
+            # Get worksheet count
+            worksheet_count = self.workbook.Worksheets.Count
             
             # Iterate through all worksheets
-            for sheet in self.workbook.Worksheets:
+            for i in range(1, worksheet_count + 1):
                 try:
-                    # Get used range for this sheet
+                    sheet = self.workbook.Worksheets(i)
                     used_range = sheet.UsedRange
                     if used_range:
-                        # Count rows in this sheet
                         sheet_rows = used_range.Rows.Count
                         total_rows += sheet_rows
+                        sheet_count += 1
+                        
+                        if detailed_log:
+                            sheet_name = sheet.Name
+                            self._log(f"  Sheet '{sheet_name}': {sheet_rows:,} rows", "DEBUG")
                 except Exception:
-                    # Skip sheets that can't be read
                     continue
+            
+            if detailed_log and sheet_count > 0:
+                self._log(f"Total rows: {total_rows:,} across {sheet_count} sheets", "DEBUG")
             
             return total_rows
         
@@ -400,62 +430,73 @@ class ExcelRefresher:
         """
         try:
             if self.workbook:
+                # Disable screen updating for better performance
+                self.excel_app.ScreenUpdating = False
+                self.excel_app.DisplayAlerts = False
+                
+                # Set calculation to automatic to ensure updates
+                self.excel_app.Calculation = self.xlCalculationAutomatic
+                
+                # Execute refresh
                 self.workbook.RefreshAll()
+                
+                self._log("RefreshAll() executed - waiting for completion...", "INFO")
             else:
                 raise Exception("No workbook is open")
                 
         except Exception as e:
             raise Exception(f"Failed to execute RefreshAll: {str(e)}")
     
-    def _wait_for_refresh_completion(self) -> None:
+    def _wait_with_progress(self) -> None:
         """
-        Wait for all background refresh operations to complete.
+        Wait 2 minutes with progress updates every second.
         
-        Polls the Excel application state until all calculations
-        and background queries are finished.
-        
-        Raises:
-            TimeoutError: If refresh exceeds timeout limit
+        This provides smooth progress bar updates while waiting
+        for the refresh to complete.
         """
         start_time = time.time()
+        total_wait = self.REFRESH_WAIT_TIME
+        last_progress_pct = -1
         
-        try:
-            while True:
-                # Check timeout
-                elapsed = time.time() - start_time
-                if elapsed > self.timeout:
-                    raise TimeoutError(f"Refresh timeout after {self.timeout} seconds")
+        while True:
+            elapsed = time.time() - start_time
+            
+            # Check if stop requested
+            if self.stop_check_callback and self.stop_check_callback():
+                self._log("⚠️ Wait interrupted by user", "WARNING")
+                break
+            
+            # Check if 2 minutes elapsed
+            if elapsed >= total_wait:
+                self._log(f"✓ Wait complete ({total_wait}s elapsed)", "SUCCESS")
+                # Send 100% to UI
+                if self.wait_progress_callback:
+                    self.wait_progress_callback(100, "00:00")
+                break
+            
+            # Calculate progress percentage
+            progress_pct = int((elapsed / total_wait) * 100)
+            remaining = total_wait - elapsed
+            
+            # Update progress every 1% or every second (whichever shows change)
+            if progress_pct != last_progress_pct:
+                # Format remaining time as MM:SS
+                minutes = int(remaining // 60)
+                seconds = int(remaining % 60)
+                time_str = f"{minutes:02d}:{seconds:02d}"
                 
-                # Check if Excel is ready
-                try:
-                    # Wait for calculation to complete
-                    if self.excel_app is not None and hasattr(self.excel_app, 'CalculationState'):
-                        calc_state = self.excel_app.CalculationState
-                        if calc_state == self.xlCalculating:
-                            time.sleep(self.POLL_INTERVAL)
-                            continue
-                    
-                    # Check if application is ready
-                    if self.excel_app is not None and hasattr(self.excel_app, 'Ready'):
-                        if not self.excel_app.Ready:
-                            time.sleep(self.POLL_INTERVAL)
-                            continue
-                    
-                    # Both checks passed - refresh complete
-                    break
-                    
-                except Exception:
-                    # If we can't check state, wait a bit and try again
-                    time.sleep(self.POLL_INTERVAL)
+                self._log(
+                    f"Refreshing... {progress_pct}% | Remaining: {time_str}",
+                    "INFO"
+                )
+                # Send progress to UI with time remaining
+                if self.wait_progress_callback:
+                    self.wait_progress_callback(progress_pct, time_str)
+                
+                last_progress_pct = progress_pct
             
-            # Additional safety wait
-            time.sleep(1)
-            
-        except TimeoutError:
-            raise
-        except Exception as e:
-            # Log warning but continue - refresh might have completed
-            self._log(f"Warning during completion check: {str(e)}", "WARNING")
+            time.sleep(self.POLL_INTERVAL)
+
     
     def _save_workbook(self) -> None:
         """
@@ -466,20 +507,30 @@ class ExcelRefresher:
         """
         try:
             if self.workbook:
+                # Re-enable screen updating before save
+                if self.excel_app:
+                    self.excel_app.ScreenUpdating = True
+                    self.excel_app.DisplayAlerts = True
+                
+                self._log("Saving workbook...", "INFO")
                 self.workbook.Save()
+                self._log("Workbook saved successfully", "SUCCESS")
             else:
                 raise Exception("No workbook is open")
                 
         except Exception as e:
             raise Exception(f"Failed to save workbook: {str(e)}")
     
-    def _close_workbook(self) -> None:
+    def _close_workbook(self, save_changes: bool = False) -> None:
         """
-        Close the workbook without saving additional changes.
+        Close the workbook.
+        
+        Args:
+            save_changes: Whether to save changes before closing (default: False)
         """
         try:
             if self.workbook:
-                self.workbook.Close(SaveChanges=False)
+                self.workbook.Close(SaveChanges=save_changes)
                 self.workbook = None
                 
         except Exception as e:

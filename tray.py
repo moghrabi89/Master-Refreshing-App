@@ -35,7 +35,7 @@ import os
 from typing import Callable, Optional
 from PyQt6.QtWidgets import QSystemTrayIcon, QMenu
 from PyQt6.QtGui import QIcon, QAction
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSlot
 
 
 class SystemTrayManager:
@@ -110,8 +110,8 @@ class SystemTrayManager:
         self.tray_menu = self._create_menu()
         self.tray_icon.setContextMenu(self.tray_menu)
         
-        # Connect tray icon activation (double-click)
-        self.tray_icon.activated.connect(self._on_icon_activated)
+        # Connect tray icon activation (double-click) with explicit type
+        self.tray_icon.activated[QSystemTrayIcon.ActivationReason].connect(self._on_icon_activated)
         
         # Set tooltip
         self.tray_icon.setToolTip("Master Refreshing App")
@@ -251,13 +251,9 @@ class SystemTrayManager:
         # Store original for potential future use
         self.main_window._original_close_event = original_close_event
     
-    def _on_icon_activated(self, reason) -> None:
+    def _on_icon_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
         """
         Handle system tray icon activation (clicks).
-        
-        Behavior:
-            - DoubleClick: Restore main window
-            - Single click: Platform-dependent (handled by Qt automatically)
         
         Args:
             reason: QSystemTrayIcon.ActivationReason enum value
