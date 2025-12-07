@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QPushButton, QLabel, QTableWidget, QTableWidgetItem, QTextEdit,
     QTimeEdit, QFrame, QStatusBar, QHeaderView, QFileDialog, QCheckBox,
-    QProgressBar, QSizePolicy
+    QProgressBar, QSizePolicy, QScrollArea
 )
 from PyQt6.QtCore import Qt, QTime
 from PyQt6.QtGui import QFont, QColor
@@ -197,10 +197,20 @@ class MainWindow(QMainWindow):
         Returns:
             QFrame: Controls panel with scheduler and refresh button
         """
+        # Main panel container
         panel = QFrame()
         panel.setObjectName("controlsPanel")
         
-        layout = QVBoxLayout(panel)
+        # Create scroll area for better responsiveness
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        
+        # Content widget inside scroll
+        content_widget = QWidget()
+        layout = QVBoxLayout(content_widget)
         layout.setSpacing(15)
         layout.setContentsMargins(15, 15, 15, 15)
         
@@ -217,6 +227,14 @@ class MainWindow(QMainWindow):
         
         # Spacer at bottom
         layout.addStretch()
+        
+        # Set content widget to scroll area
+        scroll_area.setWidget(content_widget)
+        
+        # Add scroll area to main panel
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(0, 0, 0, 0)
+        panel_layout.addWidget(scroll_area)
         
         return panel
     
@@ -242,18 +260,89 @@ class MainWindow(QMainWindow):
         layout.addWidget(title_label)
         
         # Time selection label
-        time_label = QLabel("Refresh Time:")
+        time_label = QLabel("Refresh Times (up to 3):")
         time_label.setFont(QFont("Segoe UI", 11))
+        time_label.setWordWrap(True)
         layout.addWidget(time_label)
         
-        # Time picker
-        self.time_edit = QTimeEdit()
-        self.time_edit.setObjectName("timeEdit")
-        self.time_edit.setDisplayFormat("HH:mm")
-        self.time_edit.setTime(QTime(6, 0))  # Default: 06:00 AM
-        self.time_edit.setMinimumHeight(40)
-        self.time_edit.setFont(QFont("Segoe UI", 12))
-        layout.addWidget(self.time_edit)
+        # Create a container for time pickers with better layout
+        times_container = QWidget()
+        times_layout = QVBoxLayout(times_container)
+        times_layout.setSpacing(8)
+        times_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Time picker 1 (in horizontal layout)
+        time1_widget = QWidget()
+        time1_layout = QHBoxLayout(time1_widget)
+        time1_layout.setContentsMargins(0, 0, 0, 0)
+        time1_layout.setSpacing(10)
+        
+        time1_label = QLabel("Time 1:")
+        time1_label.setFont(QFont("Segoe UI", 9))
+        time1_label.setMinimumWidth(70)
+        time1_label.setMaximumWidth(100)
+        time1_layout.addWidget(time1_label)
+        
+        self.time_edit_1 = QTimeEdit()
+        self.time_edit_1.setObjectName("timeEdit1")
+        self.time_edit_1.setDisplayFormat("HH:mm")
+        self.time_edit_1.setTime(QTime(6, 0))
+        self.time_edit_1.setMinimumHeight(35)
+        self.time_edit_1.setFont(QFont("Segoe UI", 11))
+        self.time_edit_1.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        time1_layout.addWidget(self.time_edit_1)
+        
+        times_layout.addWidget(time1_widget)
+        
+        # Time picker 2 (in horizontal layout)
+        time2_widget = QWidget()
+        time2_layout = QHBoxLayout(time2_widget)
+        time2_layout.setContentsMargins(0, 0, 0, 0)
+        time2_layout.setSpacing(10)
+        
+        time2_label = QLabel("Time 2:")
+        time2_label.setFont(QFont("Segoe UI", 9))
+        time2_label.setMinimumWidth(70)
+        time2_label.setMaximumWidth(100)
+        time2_layout.addWidget(time2_label)
+        
+        self.time_edit_2 = QTimeEdit()
+        self.time_edit_2.setObjectName("timeEdit2")
+        self.time_edit_2.setDisplayFormat("HH:mm")
+        self.time_edit_2.setTime(QTime(0, 0))
+        self.time_edit_2.setSpecialValueText("--:--")
+        self.time_edit_2.setMinimumHeight(35)
+        self.time_edit_2.setFont(QFont("Segoe UI", 11))
+        self.time_edit_2.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        time2_layout.addWidget(self.time_edit_2)
+        
+        times_layout.addWidget(time2_widget)
+        
+        # Time picker 3 (in horizontal layout)
+        time3_widget = QWidget()
+        time3_layout = QHBoxLayout(time3_widget)
+        time3_layout.setContentsMargins(0, 0, 0, 0)
+        time3_layout.setSpacing(10)
+        
+        time3_label = QLabel("Time 3:")
+        time3_label.setFont(QFont("Segoe UI", 9))
+        time3_label.setMinimumWidth(70)
+        time3_label.setMaximumWidth(100)
+        time3_layout.addWidget(time3_label)
+        
+        self.time_edit_3 = QTimeEdit()
+        self.time_edit_3.setObjectName("timeEdit3")
+        self.time_edit_3.setDisplayFormat("HH:mm")
+        self.time_edit_3.setTime(QTime(0, 0))
+        self.time_edit_3.setSpecialValueText("--:--")
+        self.time_edit_3.setMinimumHeight(35)
+        self.time_edit_3.setFont(QFont("Segoe UI", 11))
+        self.time_edit_3.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        time3_layout.addWidget(self.time_edit_3)
+        
+        times_layout.addWidget(time3_widget)
+        
+        layout.addWidget(times_container)
         
         # Scheduler status indicator
         self.scheduler_status_label = QLabel("● Scheduler: Stopped")

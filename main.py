@@ -283,8 +283,10 @@ class Application(QObject):
         self.main_window.start_scheduler_btn.clicked.connect(self.handle_start_scheduler)
         self.main_window.stop_scheduler_btn.clicked.connect(self.handle_stop_scheduler)
         
-        # Time edit change
-        self.main_window.time_edit.timeChanged.connect(self.handle_time_changed)
+        # Time edit changes
+        self.main_window.time_edit_1.timeChanged.connect(self.handle_time_changed)
+        self.main_window.time_edit_2.timeChanged.connect(self.handle_time_changed)
+        self.main_window.time_edit_3.timeChanged.connect(self.handle_time_changed)
         
         # Windows Startup checkbox
         self.main_window.startup_checkbox.stateChanged.connect(self.handle_startup_toggle)
@@ -344,10 +346,10 @@ class Application(QObject):
     
     def _initialize_scheduler(self):
         """Initialize the refresh scheduler."""
-        scheduled_time = self.config.get_schedule_time()
+        scheduled_times = self.config.get_schedule_times()
         
         self.scheduler = RefreshScheduler(
-            scheduled_time=scheduled_time,
+            scheduled_times=scheduled_times,
             refresh_callback=self.handle_scheduled_refresh,
             log_callback=self._scheduler_log_callback
         )
@@ -356,7 +358,8 @@ class Application(QObject):
         if self.config.is_auto_refresh_enabled():
             self.handle_start_scheduler()
         
-        self.logger.debug(f"Scheduler initialized: {scheduled_time}")
+        times_str = ", ".join([t for t in scheduled_times if t])
+        self.logger.debug(f"Scheduler initialized: {times_str}")
     
     def _initialize_system_tray(self):
         """Initialize system tray integration."""
@@ -455,10 +458,17 @@ class Application(QObject):
         # Update file count
         self._update_file_count()
         
-        # Set scheduled time in UI
-        time_str = self.config.get_schedule_time()
-        hour, minute = map(int, time_str.split(':'))
-        self.main_window.time_edit.setTime(QTime(hour, minute))
+        # Set scheduled times in UI
+        times = self.config.get_schedule_times()
+        if times[0]:
+            hour, minute = map(int, times[0].split(':'))
+            self.main_window.time_edit_1.setTime(QTime(hour, minute))
+        if times[1]:
+            hour, minute = map(int, times[1].split(':'))
+            self.main_window.time_edit_2.setTime(QTime(hour, minute))
+        if times[2]:
+            hour, minute = map(int, times[2].split(':'))
+            self.main_window.time_edit_3.setTime(QTime(hour, minute))
         
         # Set Windows startup checkbox state
         startup_enabled = self.config.is_run_on_startup_enabled()
@@ -628,7 +638,9 @@ class Application(QObject):
         self.main_window.add_files_btn.setEnabled(False)
         self.main_window.remove_files_btn.setEnabled(False)
         self.main_window.start_scheduler_btn.setEnabled(False)
-        self.main_window.time_edit.setEnabled(False)
+        self.main_window.time_edit_1.setEnabled(False)
+        self.main_window.time_edit_2.setEnabled(False)
+        self.main_window.time_edit_3.setEnabled(False)
         
         # Show and reset progress bar
         self.main_window.progress_container.setVisible(True)
@@ -750,7 +762,9 @@ class Application(QObject):
         self.main_window.add_files_btn.setEnabled(True)
         self.main_window.remove_files_btn.setEnabled(True)
         self.main_window.start_scheduler_btn.setEnabled(True)
-        self.main_window.time_edit.setEnabled(True)
+        self.main_window.time_edit_1.setEnabled(True)
+        self.main_window.time_edit_2.setEnabled(True)
+        self.main_window.time_edit_3.setEnabled(True)
         
         # Update status
         self.main_window.status_message.setText("Ready")
@@ -821,7 +835,9 @@ class Application(QObject):
         self.main_window.add_files_btn.setEnabled(True)
         self.main_window.remove_files_btn.setEnabled(True)
         self.main_window.start_scheduler_btn.setEnabled(True)
-        self.main_window.time_edit.setEnabled(True)
+        self.main_window.time_edit_1.setEnabled(True)
+        self.main_window.time_edit_2.setEnabled(True)
+        self.main_window.time_edit_3.setEnabled(True)
         
         self.main_window.status_message.setText("Error")
         
@@ -891,17 +907,38 @@ class Application(QObject):
             self.logger.log_scheduler_stop()
     
     def handle_time_changed(self, time):
-        """Handle schedule time change."""
-        time_str = time.toString("HH:mm")
+        """Handle schedule time change for any of the 3 time fields."""
+        # Get all 3 times from UI
+        time1_str = self.main_window.time_edit_1.time().toString("HH:mm")
+        time2_str = self.main_window.time_edit_2.time().toString("HH:mm")
+        time3_str = self.main_window.time_edit_3.time().toString("HH:mm")
+        
+        # Filter out 00:00 (considered as empty)
+        times = []
+        if time1_str and time1_str != "00:00":
+            times.append(time1_str)
+        if time2_str and time2_str != "00:00":
+            times.append(time2_str)
+        if time3_str and time3_str != "00:00":
+            times.append(time3_str)
+        
+        # Ensure at least one time
+        if not times:
+            times = [time1_str]  # Always keep first time
+        
+        # Pad to 3 slots
+        while len(times) < 3:
+            times.append("")
         
         # Update scheduler
         if self.scheduler:
-            self.scheduler.set_time(time_str)
+            self.scheduler.set_times([t for t in times if t])
         
         # Save to config
-        self.config.set_schedule_time(time_str)
+        self.config.set_schedule_times(times)
         
-        self.logger.info(f"Schedule time updated: {time_str}")
+        times_display = ", ".join([t for t in times if t])
+        self.logger.info(f"Schedule times updated: {times_display}")
     
     def _scheduler_log_callback(self, message: str, level: str):
         """Callback for scheduler logs."""

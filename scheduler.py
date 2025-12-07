@@ -22,7 +22,7 @@ Author: ENG. Saeed Al-moghrabi
 import threading
 import time
 from datetime import datetime, timedelta
-from typing import Callable, Optional
+from typing import Callable, Optional, List
 import re
 
 
@@ -39,18 +39,21 @@ class RefreshScheduler:
     CHECK_INTERVAL = 30  # Check time every 30 seconds (balance between responsiveness and CPU)
     
     def __init__(self,
-                 scheduled_time: str = "06:00",
+                 scheduled_times: Optional[List[str]] = None,
                  refresh_callback: Optional[Callable[[], None]] = None,
                  log_callback: Optional[Callable[[str, str], None]] = None):
         """
         Initialize the refresh scheduler.
         
         Args:
-            scheduled_time: Time in HH:MM format (24-hour)
+            scheduled_times: List of times in HH:MM format (24-hour), up to 3 times
             refresh_callback: Function to call when scheduled time is reached
             log_callback: Function(message, level) for logging
         """
-        self.scheduled_time = scheduled_time
+        if scheduled_times is None:
+            scheduled_times = ["06:00"]
+        
+        self.scheduled_times = [t for t in scheduled_times if t and t.strip()]  # Remove empty
         self.refresh_callback = refresh_callback
         self.log_callback = log_callback
         
@@ -62,11 +65,17 @@ class RefreshScheduler:
         
         # State tracking
         self._last_execution_date = None
+        self._executed_times_today = set()  # Track which times executed today
         
-        # Validate initial time
-        if not self._validate_time_format(scheduled_time):
-            self._log(f"Invalid time format: {scheduled_time}. Using default 06:00", "WARNING")
-            self.scheduled_time = "06:00"
+        # Validate initial times
+        valid_times = []
+        for time_str in self.scheduled_times:
+            if self._validate_time_format(time_str):
+                valid_times.append(time_str)
+            else:
+                self._log(f"Invalid time format: {time_str}. Skipping.", "WARNING")
+        
+        self.scheduled_times = valid_times if valid_times else ["06:00"]
     
     def start(self) -> bool:
         """
@@ -94,7 +103,8 @@ class RefreshScheduler:
             self._running = True
             self._thread.start()
             
-            self._log(f"Scheduler started: Daily refresh at {self.scheduled_time}", "INFO")
+            times_str = ", ".join(self.scheduled_times)
+            self._log(f"Scheduler started: Daily refresh at [{times_str}]", "INFO")
             
             # Placeholder: UI signal for scheduler started
             # ui_signal_scheduler_started.emit()
@@ -134,11 +144,44 @@ class RefreshScheduler:
         
         return True
     
-    def set_time(self, new_time: str) -> bool:
+    def set_times(self, new_times: List[str]) -> bool:
         """
-        Update the scheduled refresh time dynamically.
+        Update the scheduled refresh times dynamically.
         
         Changes take effect immediately without restarting the scheduler.
+        
+        Args:
+            new_times: List of new times in HH:MM format (up to 3)
+        
+        Returns:
+            True if times were updated, False if all invalid
+        """
+        # Validate and filter valid times
+        valid_times = []
+        for time_str in new_times[:3]:  # Only take first 3
+            if time_str and time_str.strip() and self._validate_time_format(time_str):
+                valid_times.append(time_str.strip())
+            elif time_str and time_str.strip():
+                self._log(f"Invalid time format: {time_str}. Skipping.", "ERROR")
+        
+        if not valid_times:
+            self._log("No valid times provided. Keeping current schedule.", "ERROR")
+            return False
+        
+        old_times = ", ".join(self.scheduled_times)
+        self.scheduled_times = valid_times
+        
+        # Reset execution tracking for today
+        self._executed_times_today.clear()
+        
+        new_times_str = ", ".join(self.scheduled_times)
+        self._log(f"Scheduled times updated: [{old_times}] → [{new_times_str}]", "INFO")
+        
+        return True
+    
+    def set_time(self, new_time: str) -> bool:
+        """
+        Update the scheduled refresh time (backward compatibility - sets first time only).
         
         Args:
             new_time: New time in HH:MM format
@@ -146,23 +189,7 @@ class RefreshScheduler:
         Returns:
             True if time was updated, False if invalid format
         """
-        # Validate format
-        if not self._validate_time_format(new_time):
-            self._log(f"Invalid time format: {new_time}. Must be HH:MM (24-hour)", "ERROR")
-            return False
-        
-        old_time = self.scheduled_time
-        self.scheduled_time = new_time
-        
-        self._log(f"Scheduled time updated: {old_time} → {new_time}", "INFO")
-        
-        # Placeholder: UI signal for time changed
-        # ui_signal_time_changed.emit(new_time)
-        
-        # Placeholder: Save to configuration
-        # config_handler.set_schedule_time(new_time)
-        
-        return True
+        return self.set_times([new_time])
     
     def is_running(self) -> bool:
         """
@@ -175,12 +202,21 @@ class RefreshScheduler:
     
     def get_scheduled_time(self) -> str:
         """
-        Get the current scheduled time.
+        Get the first scheduled time (backward compatibility).
         
         Returns:
             Time string in HH:MM format
         """
-        return self.scheduled_time
+        return self.scheduled_times[0] if self.scheduled_times else "06:00"
+    
+    def get_scheduled_times(self) -> List[str]:
+        """
+        Get all scheduled times.
+        
+        Returns:
+            List of time strings in HH:MM format
+        """
+        return self.scheduled_times.copy()
     
     def get_next_run_time(self) -> Optional[datetime]:
         """
@@ -207,13 +243,20 @@ class RefreshScheduler:
         try:
             while not self._stop_event.is_set():
                 try:
-                    # Check if it's time to run
-                    if self._is_time_to_refresh():
-                        self._log(f"Scheduled time reached: {self.scheduled_time}", "INFO")
+                    # Check if it's time to run any of the scheduled times
+                    matched_time = self._is_time_to_refresh()
+                    if matched_time:
+                        self._log(f"Scheduled time reached: {matched_time}", "INFO")
                         self._execute_scheduled_refresh()
                         
-                        # Mark execution date to prevent multiple runs
-                        self._last_execution_date = datetime.now().date()
+                        # Mark this time as executed today
+                        self._executed_times_today.add(matched_time)
+                    
+                    # Reset execution tracking at midnight
+                    now = datetime.now()
+                    if self._last_execution_date and self._last_execution_date != now.date():
+                        self._executed_times_today.clear()
+                    self._last_execution_date = now.date()
                     
                     # Smart sleep: wait until next check interval or stop signal
                     self._stop_event.wait(timeout=self.CHECK_INTERVAL)
@@ -229,45 +272,51 @@ class RefreshScheduler:
         finally:
             self._log("Scheduler thread stopped", "DEBUG")
     
-    def _is_time_to_refresh(self) -> bool:
+    def _is_time_to_refresh(self) -> Optional[str]:
         """
-        Check if current time matches scheduled time.
+        Check if current time matches any scheduled time.
         
         Returns:
-            True if it's time to refresh, False otherwise
+            Matched time string if it's time to refresh, None otherwise
         """
         now = datetime.now()
         current_time = now.strftime("%H:%M")
-        current_date = now.date()
         
-        # Check if time matches and we haven't already run today
-        time_matches = current_time == self.scheduled_time
-        not_run_today = self._last_execution_date != current_date
+        # Check each scheduled time
+        for scheduled_time in self.scheduled_times:
+            # Check if time matches and we haven't executed this time today
+            if current_time == scheduled_time and scheduled_time not in self._executed_times_today:
+                return scheduled_time
         
-        return time_matches and not_run_today
+        return None
     
     def _calculate_next_run_time(self) -> datetime:
         """
-        Calculate the next scheduled execution time.
+        Calculate the next scheduled execution time (earliest upcoming time).
         
         Returns:
             DateTime object representing next run
         """
         now = datetime.now()
         
-        # Parse scheduled time
-        hour, minute = map(int, self.scheduled_time.split(':'))
+        next_times = []
+        for time_str in self.scheduled_times:
+            # Parse scheduled time
+            hour, minute = map(int, time_str.split(':'))
+            
+            # Create datetime for today at scheduled time
+            scheduled_today = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            
+            # If scheduled time has passed today or already executed, schedule for tomorrow
+            if now >= scheduled_today or time_str in self._executed_times_today:
+                scheduled_next = scheduled_today + timedelta(days=1)
+            else:
+                scheduled_next = scheduled_today
+            
+            next_times.append(scheduled_next)
         
-        # Create datetime for today at scheduled time
-        scheduled_today = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        
-        # If scheduled time has passed today, schedule for tomorrow
-        if now >= scheduled_today:
-            scheduled_next = scheduled_today + timedelta(days=1)
-        else:
-            scheduled_next = scheduled_today
-        
-        return scheduled_next
+        # Return the earliest time
+        return min(next_times) if next_times else now
     
     def _execute_scheduled_refresh(self) -> None:
         """
@@ -345,7 +394,8 @@ class RefreshScheduler:
     def __repr__(self) -> str:
         """String representation of RefreshScheduler."""
         status = "running" if self._running else "stopped"
-        return f"RefreshScheduler(time={self.scheduled_time}, status={status})"
+        times_str = ", ".join(self.scheduled_times)
+        return f"RefreshScheduler(times=[{times_str}], status={status})"
     
     def __del__(self):
         """Cleanup: ensure thread is stopped when object is destroyed."""
@@ -393,7 +443,7 @@ if __name__ == "__main__":
     
     # Create scheduler
     scheduler = RefreshScheduler(
-        scheduled_time=test_time,
+        scheduled_times=[test_time],
         refresh_callback=mock_refresh,
         log_callback=console_logger
     )

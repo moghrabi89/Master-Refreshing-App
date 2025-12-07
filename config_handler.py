@@ -36,7 +36,7 @@ class ConfigHandler:
     # Default configuration structure
     DEFAULT_CONFIG = {
         "files": [],
-        "schedule_time": "06:00",
+        "schedule_times": ["06:00", "", ""],  # Support up to 3 schedule times
         "auto_refresh_enabled": False,
         "theme_mode": "modern",
         "run_on_startup": False,
@@ -158,8 +158,16 @@ class ConfigHandler:
         if isinstance(loaded_config.get("files"), list):
             validated["files"] = loaded_config["files"]
         
-        if isinstance(loaded_config.get("schedule_time"), str):
-            validated["schedule_time"] = loaded_config["schedule_time"]
+        # Validate and copy schedule_times field (with migration support)
+        if isinstance(loaded_config.get("schedule_times"), list):
+            # Ensure we have exactly 3 slots (pad with empty strings if needed)
+            times = loaded_config["schedule_times"][:3]  # Take first 3
+            while len(times) < 3:
+                times.append("")  # Pad to 3
+            validated["schedule_times"] = times
+        elif isinstance(loaded_config.get("schedule_time"), str):
+            # Migration from old single schedule_time
+            validated["schedule_times"] = [loaded_config["schedule_time"], "", ""]
         
         if isinstance(loaded_config.get("auto_refresh_enabled"), bool):
             validated["auto_refresh_enabled"] = loaded_config["auto_refresh_enabled"]
@@ -379,18 +387,33 @@ class ConfigHandler:
     
     # ===== SCHEDULE TIME MANAGEMENT =====
     
-    def get_schedule_time(self) -> str:
+    def get_schedule_times(self) -> List[str]:
         """
-        Get the scheduled refresh time.
+        Get all scheduled refresh times (up to 3).
         
         Returns:
-            Time string in format "HH:MM"
+            List of time strings in HH:MM format (empty string if slot not used)
         """
-        return self.config.get("schedule_time", "06:00")
+        times = self.config.get("schedule_times", ["06:00", "", ""])
+        # Ensure always 3 slots
+        while len(times) < 3:
+            times.append("")
+        return times[:3]  # Return only first 3
+    
+    def get_schedule_time(self) -> str:
+        """
+        Get the first scheduled refresh time (backward compatibility).
+        
+        Returns:
+            Time string in HH:MM format
+        """
+        times = self.get_schedule_times()
+        return times[0] if times[0] else "06:00"
     
     def set_schedule_time(self, time_str: str) -> bool:
         """
-        Set the scheduled refresh time.
+        Set the scheduled refresh time (kept for backward compatibility).
+        Sets the first time slot only.
         
         Args:
             time_str: Time in format "HH:MM" (24-hour format)
@@ -398,20 +421,38 @@ class ConfigHandler:
         Returns:
             True if time was set successfully, False if invalid format
         """
-        # Validate time format
-        if not self._validate_time_format(time_str):
-            # Log: Invalid time format
-            # logging.warning(f"Invalid time format: {time_str}")
-            return False
+        return self.set_schedule_times([time_str, "", ""])
+    
+    def set_schedule_times(self, times: List[str]) -> bool:
+        """
+        Set all scheduled refresh times (up to 3).
         
-        # Update and save
-        self.config["schedule_time"] = time_str
-        self.save_config()
+        Args:
+            times: List of time strings in HH:MM format (use empty string for unused slots)
         
-        # Log: Schedule time updated
-        # logging.info(f"Schedule time set to: {time_str}")
+        Returns:
+            True if saved successfully, False otherwise
+        """
+        import re
+        pattern = r'^([01]\d|2[0-3]):([0-5]\d)$'
         
-        return True
+        # Validate all non-empty times
+        validated_times = []
+        for time_str in times[:3]:  # Only take first 3
+            if time_str and time_str.strip():  # If not empty
+                if not re.match(pattern, time_str):
+                    # logging.warning(f"Invalid time format: {time_str}")
+                    return False
+                validated_times.append(time_str.strip())
+            else:
+                validated_times.append("")  # Keep empty slot
+        
+        # Ensure exactly 3 slots
+        while len(validated_times) < 3:
+            validated_times.append("")
+        
+        self.config["schedule_times"] = validated_times
+        return self.save_config()
     
     def _validate_time_format(self, time_str: str) -> bool:
         """

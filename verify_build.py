@@ -13,7 +13,7 @@ Purpose:
 Usage:
     python verify_build.py [path_to_exe]
     
-    If no path provided, checks: dist\MasterRefreshingApp.exe
+    If no path provided, checks: dist\\MasterRefreshingApp.exe
 
 Author: ENG. Saeed Al-moghrabi
 """
@@ -87,8 +87,9 @@ class BuildVerifier:
         
         sha256_hash = hashlib.sha256()
         with open(self.exe_path, "rb") as f:
+            # Ensure the lambda is typed as returning bytes so the type checker is satisfied
             for byte_block in iter(lambda: f.read(4096), b""):
-                sha256_hash.update(byte_block)
+                sha256_hash.update(byte_block)  # type: ignore[arg-type]
         
         hash_value = sha256_hash.hexdigest()
         print(f"    [OK] SHA-256: {hash_value}")
