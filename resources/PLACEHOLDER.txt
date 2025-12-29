@@ -1,0 +1,7 @@
+This directory is for application resources including:
+- icon.png (system tray icon)
+- Additional UI assets
+- Theme resources
+
+The tray icon (icon.png) should be added here before running the application.
+Recommended size: 64x64 pixels, PNG format with transparency.
