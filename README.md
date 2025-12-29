@@ -311,7 +311,7 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 
 <div align="center">
 
-**صنع بـ ❤️ في فلسطين | Made with ❤️ in Palestine**
+**صنع بـ ❤️ في الاردن | Made with ❤️ in Jordan**
 
 ⭐ إذا أعجبك المشروع، لا تنسى النجمة! | Star this repo if you find it useful!
 
