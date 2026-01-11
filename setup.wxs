@@ -38,10 +38,11 @@
         <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
             <Component Id="MainExecutable" Guid="beeedc31-4f84-5873-b99f-f03cc8ae0000">
                 <File Id="MasterRefreshingAppEXE" Source="$(var.ExeSource)" KeyPath="yes" Checksum="yes"/>
-                
-                <!-- Registry Key for Run at Startup -->
+            </Component>
+            
+            <Component Id="AutoStartRegistry" Guid="beeedc31-4f84-5873-b99f-f03cc8ae0003">
                 <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Run"
-                               Name="MasterRefreshingApp" Type="string" Value="[INSTALLFOLDER]MasterRefreshingApp.exe" />
+                               Name="MasterRefreshingApp" Type="string" Value="[INSTALLFOLDER]MasterRefreshingApp.exe" KeyPath="yes"/>
             </Component>
         </ComponentGroup>
     </Fragment>
