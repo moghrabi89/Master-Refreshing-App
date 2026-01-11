@@ -67,8 +67,16 @@ jobs:
             --noupx ^
             main.py
 
+    - name: Build MSI Installer
+      shell: cmd
+      run: |
+        "%WIX%bin\candle.exe" setup.wxs -out setup.wixobj
+        "%WIX%bin\light.exe" -out dist\MasterRefreshingApp.msi setup.wixobj -ext WixUIExtension
+
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: MasterRefreshingApp-exe
-        path: dist/MasterRefreshingApp.exe
+        name: MasterRefreshingApp-Installer
+        path: |
+           dist/MasterRefreshingApp.exe
+           dist/MasterRefreshingApp.msi
