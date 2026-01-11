@@ -274,21 +274,43 @@ class RefreshScheduler:
         finally:
             self._log("Scheduler thread stopped", "DEBUG")
     
+    GRACE_PERIOD_MINUTES = 10  # Window to catch up if exact minute was missed (e.g. sleep)
+
     def _is_time_to_refresh(self) -> Optional[str]:
         """
-        Check if current time matches any scheduled time.
+        Check if current time is within allowed window (grace period) of any scheduled time.
         
         Returns:
             Matched time string if it's time to refresh, None otherwise
         """
         now = datetime.now()
-        current_time = now.strftime("%H:%M")
         
         # Check each scheduled time
         for scheduled_time in self.scheduled_times:
-            # Check if time matches and we haven't executed this time today
-            if current_time == scheduled_time and scheduled_time not in self._executed_times_today:
-                return scheduled_time
+            # Skip if already executed today
+            if scheduled_time in self._executed_times_today:
+                continue
+                
+            try:
+                # Parse scheduled time
+                hour, minute = map(int, scheduled_time.split(':'))
+                
+                # Create datetime for today at scheduled time
+                scheduled_dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                
+                # Calculate window end (scheduled time + grace period)
+                window_end = scheduled_dt + timedelta(minutes=self.GRACE_PERIOD_MINUTES)
+                
+                # Check if current time is within the window [scheduled, scheduled + grace]
+                # This handles cases where the machine was asleep or busy at the exact minute
+                if scheduled_dt <= now <= window_end:
+                    # Log if this is a catch-up (not exact minute)
+                    if now.minute != minute:
+                        self._log(f"Catching up missed schedule: {scheduled_time} (Current: {now.strftime('%H:%M')})", "INFO")
+                    return scheduled_time
+                    
+            except (ValueError, AttributeError):
+                continue
         
         return None
     

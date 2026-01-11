@@ -1,23 +1,23 @@
 {
   "_metadata": {
     "failed_files": 0,
-    "generated_at": "2025-12-29 10:56:54",
-    "generation_mode": "manual",
+    "generated_at": "2026-01-11 14:09:28",
+    "generation_mode": "auto",
     "hashed_files": 11,
     "missing_files": 0,
     "total_files": 11
   },
   "files": {
-    "config_handler.py": "b87827a7e8a8ef413e10481a25154f588fc30a595c072249bea01a7d90b27ecd",
+    "config_handler.py": "982d21ce9ab4ade1d67a9de7d7d5294ec2c61702e9e4fff9072a348f642b9599",
     "file_manager.py": "f2afe3f40351d6a9aae71e680c5f334da2b506187b1f781f820d26e287ced929",
     "integrity_checker.py": "785168c35838de6f822018cb8006a31ee9ad6d79263dba2db108f15da61c8715",
     "logs_window.py": "70f433b757bee23957e1bd36bc78906698208139eff249942950ec96b750800d",
-    "main.py": "0286490284ff8286d645c479a7e5df79ead1edfc0fb9b52b2196ebb93fb8b4cb",
-    "refresher.py": "5cf85d78162caaea1aae7468ff6b5e0d08d76d941de1642f7a7748e9deaeb608",
-    "scheduler.py": "8919022f7a66765566a84eca04417da48b0ac7b7244e1455ef0679346285cf58",
+    "main.py": "17327c660b7c6b16ede5cfca335393f7d99ac2eda37cc6378907a6b89fa9b459",
+    "refresher.py": "f7d1b9a8bf981385fdc3b77cf579e79982aa2a683d1e18cbc43741595836d3bc",
+    "scheduler.py": "e96c4b3c8e2e62637e7451ce076de588adca6c7933dbd40e337814f26ebca0ba",
     "startup_manager.py": "e0fef9c1ec205003402e4c49f324e5ba0e0f40a8738a6c1da6801d567c7cadbc",
-    "theme.py": "8ceddd007d03ce77271a2cc6e96d67854c3d138b79a003f83e1091c461dcc2f0",
+    "theme.py": "f93b5c6c59ccf9611fe4413f25cc095d4e4e8f59d30aefd1881b44b8431b9be9",
     "tray.py": "73c06b7e7ef92f4ca0bb84f87c45a21e4e9474b3ca7e81451bf1cb58f9622f51",
-    "ui_main.py": "e301fe981de7d62a2d17482503562e31bd8e0a03b825cb5b8bfe100ab8033ac4"
+    "ui_main.py": "5bb53f50277d07b45cd2ebd3a2c4fdd1f9177c83b4d29f1996c40a0d9ecb7ce7"
   }
 }
