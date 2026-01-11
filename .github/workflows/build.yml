@@ -32,6 +32,7 @@ jobs:
         python -c "from PIL import Image; img=Image.open('resources/icon.png'); img.save('resources/icon.ico', format='ICO', sizes=[(256,256)])"
 
     - name: Build Executable
+      shell: cmd
       run: |
         pyinstaller ^
             --clean ^
