@@ -40,6 +40,7 @@ env/
 
 # PyInstaller
 *.manifest
+!app.manifest
 *.spec
 build/
 dist/
