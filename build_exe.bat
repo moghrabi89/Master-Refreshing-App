@@ -1,7 +1,7 @@
 @echo off
 REM ============================================================================
 REM Master Refreshing App - Production Build Script
-REM Version: 1.3.3
+REM Version: 1.3.4
 REM Author: ENG. Saeed Al-moghrabi
 REM
 REM This script builds a clean, optimized, low-detection Windows executable
@@ -10,7 +10,7 @@ REM ============================================================================
 
 echo.
 echo ========================================
-echo  Master Refreshing App v1.3.3
+echo  Master Refreshing App v1.3.4
 echo  Clean EXE Build Script
 echo ========================================
 echo.

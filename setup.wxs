@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
     <?define ProductName="Master Refreshing App" ?>
-    <?define ProductVersion="1.3.3" ?>
+    <?define ProductVersion="1.3.4" ?>
     <?define Manufacturer="ENG. Saeed Al-moghrabi" ?>
     <?define UpgradeCode="20104059-413d-5af8-93e2-323ff91ac225" ?>
     <?define ExeSource="dist\MasterRefreshingApp.exe" ?>

@@ -20,7 +20,7 @@ Purpose:
     - Auto manifest generation with command-line support
 
 Author: ENG. Saeed Al-moghrabi
-Version: 1.3.3 - Production Ready
+Version: 1.3.4 - Production Ready
 """
 
 import sys
@@ -1546,7 +1546,7 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Master Refreshing App")
     app.setOrganizationName("ENG. Saeed Al-moghrabi")
-    app.setApplicationVersion("1.3.3")
+    app.setApplicationVersion("1.3.4")
     
     # Prevent application from quitting when the last window is closed (keeps tray icon active)
     app.setQuitOnLastWindowClosed(False)

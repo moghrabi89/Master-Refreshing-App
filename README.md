@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.3.3-blue.svg)
+![Version](https://img.shields.io/badge/version-1.3.4-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-brightgreen.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
@@ -17,9 +17,9 @@
 
 ## 📋 نظرة عامة | Overview
 
-**Master Refreshing App** هو تطبيق سطح مكتب متطور مبني بلغة Python باستخدام PyQt6، مصمم لأتمتة عملية تحديث ملفات Excel التي تحتوي على اتصالات بيانات خارجية، PowerQuery، وجداول محورية. يعمل التطبيق بصمت في الخلفية وينفذ التحديثات المجدولة دون أي تدخل يدوي. النسخة 1.3.3 تضيف تحسينات هامة على الاستقرار، بما في ذلك "فترة سماح" للجدولة وحماية من الإغلاق العرضي.
+**Master Refreshing App** هو تطبيق سطح مكتب متطور مبني بلغة Python باستخدام PyQt6، مصمم لأتمتة عملية تحديث ملفات Excel التي تحتوي على اتصالات بيانات خارجية، PowerQuery، وجداول محورية. يعمل التطبيق بصمت في الخلفية وينفذ التحديثات المجدولة دون أي تدخل يدوي. النسخة 1.3.4 تصحح مشكلة التوافق مع أنظمة الحماية وتوفر تثبيتاً أكثر استقراراً.
 
-**Master Refreshing App** is an advanced Python desktop application built with PyQt6, designed to automate the refresh process for Excel files containing external data connections, PowerQuery, and PivotTables. The application runs silently in the background and executes scheduled updates without manual intervention. Version 1.3.3 adds critical stability improvements, including a "grace period" for scheduling and protection against accidental closure.
+**Master Refreshing App** is an advanced Python desktop application built with PyQt6, designed to automate the refresh process for Excel files containing external data connections, PowerQuery, and PivotTables. The application runs silently in the background and executes scheduled updates without manual intervention. Version 1.3.4 fixes compatibility issues with security systems and provides a more stable installation.
 
 ---
 
